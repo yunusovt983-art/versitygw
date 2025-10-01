@@ -1,0 +1,69 @@
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+cmd/versitygw/versitygw
+/versitygw
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+# ignore IntelliJ directories
+.idea
+
+# ignore VS code directories
+.vscode
+
+# auto generated VERSION file
+VERSION
+
+# build output
+/versitygw.spec
+*.tar
+*.tar.gz
+**/rand.data
+/profile.txt
+
+dist/
+
+# secrets file for local github-actions testing
+tests/.secrets*
+
+# IAM users files often created in testing
+users.json
+users.json.backup
+
+# env files for testing
+**/.env*
+**/!.env.default
+
+# s3cmd config files (testing)
+tests/s3cfg.local*
+tests/!s3cfg.local.default
+
+# keys
+*.pem
+
+# patches
+*.patch
+
+# grafana's local database (kept on filesystem for survival between instantiations)
+metrics-exploration/grafana_data/**
+
+# bats tools
+/tests/bats-assert
+/tests/bats-support

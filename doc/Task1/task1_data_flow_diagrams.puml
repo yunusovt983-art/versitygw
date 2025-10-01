@@ -1,0 +1,339 @@
+@startuml Task1_Data_Flow_Diagrams
+!theme plain
+
+title Enhanced Cache System - Data Flow Scenarios (Task1)
+
+' =================================
+' SCENARIO 1: NORMAL CACHE HIT
+' =================================
+!startsub CACHE_HIT
+skinparam backgroundColor #F0F8FF
+title Scenario 1: Cache Hit Flow
+
+participant "S3 Client" as client
+participant "S3 API Layer" as api
+participant "Enhanced IAM Cache" as iam_cache
+participant "Primary Cache" as primary
+participant "Cache Statistics" as stats
+
+client -> api: **S3 Request**\n(Access Key: "user123")
+activate api
+
+api -> iam_cache: **GetUserAccount("user123")**
+activate iam_cache
+
+iam_cache -> primary: **Get("user:user123", UserCredentials)**
+activate primary
+
+primary -> primary: **Check expiry & type**
+primary -> primary: **Update access time (LRU)**
+primary -> stats: **Increment hits**
+primary --> iam_cache: **Return Account{...}**
+deactivate primary
+
+iam_cache --> api: **Return Account**
+deactivate iam_cache
+
+api --> client: **S3 Response (200 OK)**
+deactivate api
+
+note right: **Cache Hit Benefits:**\n• No IAM service call\n• Fast response time\n• Reduced external load
+!endsub
+
+newpage
+
+' =================================
+' SCENARIO 2: CACHE MISS WITH SERVICE AVAILABLE
+' =================================
+!startsub CACHE_MISS_SUCCESS
+skinparam backgroundColor #F0FFF0
+title Scenario 2: Cache Miss - Service Available
+
+participant "S3 Client" as client
+participant "S3 API Layer" as api
+participant "Enhanced IAM Cache" as iam_cache
+participant "Primary Cache" as primary
+participant "Fallback Cache" as fallback
+participant "Base IAM Service" as base_iam
+participant "Cache Statistics" as stats
+
+client -> api: **S3 Request**\n(Access Key: "newuser")
+activate api
+
+api -> iam_cache: **GetUserAccount("newuser")**
+activate iam_cache
+
+iam_cache -> primary: **Get("user:newuser", UserCredentials)**
+activate primary
+primary -> stats: **Increment misses**
+primary --> iam_cache: **Not found**
+deactivate primary
+
+iam_cache -> base_iam: **GetUserAccount("newuser")**
+activate base_iam
+base_iam --> iam_cache: **Return Account{...}**
+deactivate base_iam
+
+par Store in Primary Cache
+    iam_cache -> primary: **Set("user:newuser", account, 15min, UserCredentials)**
+    activate primary
+    primary -> primary: **Check cache size**
+    alt Cache full
+        primary -> primary: **evictLRU()**
+        primary -> stats: **Increment evictions**
+    end
+    primary -> primary: **Store entry**
+    deactivate primary
+and Store in Fallback Cache
+    iam_cache -> fallback: **Set("user:newuser", account, 60min, UserCredentials)**
+    activate fallback
+    fallback -> fallback: **Store with extended TTL**
+    deactivate fallback
+end
+
+iam_cache --> api: **Return Account**
+deactivate iam_cache
+
+api --> client: **S3 Response (200 OK)**
+deactivate api
+
+note right: **Cache Miss Handling:**\n• Fetch from IAM service\n• Store in both caches\n• Different TTL values\n• LRU eviction if needed
+!endsub
+
+newpage
+
+' =================================
+' SCENARIO 3: FALLBACK MECHANISM
+' =================================
+!startsub FALLBACK_SCENARIO
+skinparam backgroundColor #FFF0F0
+title Scenario 3: Fallback Mechanism - Service Unavailable
+
+participant "S3 Client" as client
+participant "S3 API Layer" as api
+participant "Enhanced IAM Cache" as iam_cache
+participant "Primary Cache" as primary
+participant "Fallback Cache" as fallback
+participant "Base IAM Service" as base_iam
+participant "Cache Statistics" as stats
+
+client -> api: **S3 Request**\n(Access Key: "user123")
+activate api
+
+api -> iam_cache: **GetUserAccount("user123")**
+activate iam_cache
+
+iam_cache -> primary: **Get("user:user123", UserCredentials)**
+activate primary
+primary -> stats: **Increment misses**
+primary --> iam_cache: **Not found (expired)**
+deactivate primary
+
+iam_cache -> base_iam: **GetUserAccount("user123")**
+activate base_iam
+base_iam --> iam_cache: **Error: Service Unavailable**
+deactivate base_iam
+
+iam_cache -> fallback: **Get("user:user123", UserCredentials)**
+activate fallback
+fallback -> fallback: **Check if entry exists**
+fallback --> iam_cache: **Return stale Account{...}**
+deactivate fallback
+
+iam_cache -> iam_cache: **SetFallbackMode(true)**
+iam_cache -> stats: **Set FallbackActive = true**
+
+iam_cache --> api: **Return Account (with fallback warning)**
+deactivate iam_cache
+
+api --> client: **S3 Response (200 OK)**\n*Using cached credentials*
+deactivate api
+
+note right: **Fallback Benefits:**\n• Service continuity\n• Graceful degradation\n• Extended TTL for emergencies\n• Automatic recovery detection
+!endsub
+
+newpage
+
+' =================================
+' SCENARIO 4: CACHE INVALIDATION
+' =================================
+!startsub CACHE_INVALIDATION
+skinparam backgroundColor #FFFACD
+title Scenario 4: Cache Invalidation Flow
+
+participant "Admin/System" as admin
+participant "Enhanced IAM Cache" as iam_cache
+participant "Primary Cache" as primary
+participant "Fallback Cache" as fallback
+participant "Base IAM Service" as base_iam
+
+== User Account Update ==
+admin -> iam_cache: **UpdateUserAccount("user123", newProps)**
+activate iam_cache
+
+iam_cache -> base_iam: **UpdateUserAccount("user123", newProps)**
+activate base_iam
+base_iam --> iam_cache: **Success**
+deactivate base_iam
+
+par Invalidate Primary Cache
+    iam_cache -> primary: **Invalidate("^user:user123$")**
+    activate primary
+    primary -> primary: **Remove matching entries**
+    deactivate primary
+and Invalidate Fallback Cache
+    iam_cache -> fallback: **Invalidate("^user:user123$")**
+    activate fallback
+    fallback -> fallback: **Remove matching entries**
+    deactivate fallback
+end
+
+iam_cache -> base_iam: **GetUserAccount("user123")**
+activate base_iam
+base_iam --> iam_cache: **Return updated Account**
+deactivate base_iam
+
+par Refresh Primary Cache
+    iam_cache -> primary: **Set("user:user123", updatedAccount, TTL)**
+and Refresh Fallback Cache
+    iam_cache -> fallback: **Set("user:user123", updatedAccount, ExtendedTTL)**
+end
+
+iam_cache --> admin: **Update Success**
+deactivate iam_cache
+
+== Bulk User Invalidation ==
+admin -> iam_cache: **InvalidateUser("alice")**
+activate iam_cache
+
+par Pattern-based Invalidation
+    iam_cache -> primary: **Invalidate("^alice:")**
+    activate primary
+    primary -> primary: **Remove all alice entries**\n• alice:creds\n• alice:roles\n• alice:permissions
+    deactivate primary
+and
+    iam_cache -> fallback: **Invalidate("^alice:")**
+    activate fallback
+    fallback -> fallback: **Remove all alice entries**
+    deactivate fallback
+end
+
+iam_cache --> admin: **Invalidation Success**
+deactivate iam_cache
+
+== Type-based Invalidation ==
+admin -> iam_cache: **InvalidateType(UserCredentials)**
+activate iam_cache
+
+par Remove by Type
+    iam_cache -> primary: **InvalidateType(UserCredentials)**
+    activate primary
+    primary -> primary: **Remove all UserCredentials entries**
+    deactivate primary
+and
+    iam_cache -> fallback: **InvalidateType(UserCredentials)**
+    activate fallback
+    fallback -> fallback: **Remove all UserCredentials entries**
+    deactivate fallback
+end
+
+iam_cache --> admin: **Type Invalidation Success**
+deactivate iam_cache
+
+note right: **Invalidation Strategies:**\n• Immediate invalidation\n• Pattern-based removal\n• Type-specific clearing\n• Dual cache synchronization
+!endsub
+
+newpage
+
+' =================================
+' SCENARIO 5: LRU EVICTION
+' =================================
+!startsub LRU_EVICTION
+skinparam backgroundColor #E6E6FA
+title Scenario 5: LRU Eviction Process
+
+participant "S3 Client" as client
+participant "Enhanced IAM Cache" as iam_cache
+participant "Primary Cache" as primary
+participant "Cache Statistics" as stats
+
+note over primary: **Cache State:**\nMax Size: 3\nCurrent: [user1, user2, user3]\nAccess Times: [10:00, 10:05, 10:10]
+
+client -> iam_cache: **GetUserAccount("user4")**
+activate iam_cache
+
+iam_cache -> primary: **Get("user:user4", UserCredentials)**
+activate primary
+primary --> iam_cache: **Not found**
+deactivate primary
+
+iam_cache -> iam_cache: **Fetch from IAM service**
+
+iam_cache -> primary: **Set("user:user4", account, TTL)**
+activate primary
+
+primary -> primary: **Check cache size**
+note right: Cache is full (3/3)
+
+primary -> primary: **evictLRU()**
+primary -> primary: **Find least recently used**
+note right: user1 (accessed at 10:00)\nis least recently used
+
+primary -> primary: **Remove user1 entry**
+primary -> stats: **Increment evictions**
+primary -> primary: **Add user4 entry**
+note right: **New Cache State:**\n[user2, user3, user4]\nAccess Times: [10:05, 10:10, 10:15]
+
+primary --> iam_cache: **Success**
+deactivate primary
+
+iam_cache --> client: **Return Account**
+deactivate iam_cache
+
+note right: **LRU Benefits:**\n• Prevents memory overflow\n• Keeps frequently used data\n• Automatic space management\n• Performance optimization
+!endsub
+
+newpage
+
+' =================================
+' SCENARIO 6: HEALTH MONITORING
+' =================================
+!startsub HEALTH_MONITORING
+skinparam backgroundColor #F5FFFA
+title Scenario 6: Health Monitoring & Recovery
+
+participant "Health Monitor" as monitor
+participant "Enhanced IAM Cache" as iam_cache
+participant "Base IAM Service" as base_iam
+participant "Cache Statistics" as stats
+
+loop Every 30 seconds
+    monitor -> iam_cache: **IsHealthy()**
+    activate iam_cache
+    
+    iam_cache -> base_iam: **ListUserAccounts()**
+    activate base_iam
+    
+    alt Service Healthy
+        base_iam --> iam_cache: **Success**
+        iam_cache -> iam_cache: **SetFallbackMode(false)**
+        iam_cache -> stats: **Set FallbackActive = false**
+        iam_cache --> monitor: **true**
+        note right: Service is healthy\nNormal operation
+    else Service Unhealthy
+        base_iam --> iam_cache: **Error**
+        iam_cache -> iam_cache: **SetFallbackMode(true)**
+        iam_cache -> stats: **Set FallbackActive = true**
+        iam_cache --> monitor: **false**
+        note right: Service is down\nFallback mode active
+    end
+    
+    deactivate base_iam
+    deactivate iam_cache
+end
+
+note over monitor: **Health Monitoring Features:**\n• Automatic service detection\n• Fallback mode switching\n• Statistics tracking\n• Recovery notification
+
+!endsub
+
+@enduml

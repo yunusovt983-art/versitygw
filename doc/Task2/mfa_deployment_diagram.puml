@@ -1,0 +1,81 @@
+@startuml Task2_MFA_Deployment_Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Deployment.puml
+
+title Deployment Diagram - MFA Enhanced S3 Gateway (Task 2)
+
+Deployment_Node(client_env, "Client Environment", "User's environment") {
+    Deployment_Node(mobile, "Mobile Device", "iOS/Android") {
+        Container(totp_app, "TOTP Authenticator", "Mobile App", "Google Authenticator, Authy, etc.")
+    }
+    
+    Deployment_Node(workstation, "Client Workstation", "Desktop/Laptop") {
+        Container(s3_client, "S3 Client", "AWS CLI/SDK", "S3 client with MFA token support")
+    }
+}
+
+Deployment_Node(gateway_server, "S3 Gateway Server", "Linux Server") {
+    Deployment_Node(app_runtime, "Go Runtime", "Go 1.21+") {
+        Container(s3_gateway, "Versity S3 Gateway", "Go Application", "Enhanced with MFA authentication")
+        
+        Component_Boundary(mfa_components, "MFA Components") {
+            Component(mfa_service, "MFA Service", "Go Package", "Core MFA logic")
+            Component(mfa_middleware, "MFA Middleware", "Go Package", "HTTP MFA validation")
+            Component(totp_generator, "TOTP Generator", "Go Package", "RFC 6238 implementation")
+            Component(qr_generator, "QR Generator", "Go Package", "Setup QR codes")
+        }
+    }
+    
+    Deployment_Node(file_system, "File System", "Local Storage") {
+        ContainerDb(mfa_data, "MFA Data Store", "JSON Files", "User MFA configurations and secrets")
+        ContainerDb(config_files, "Configuration", "YAML/JSON", "MFA policies and settings")
+    }
+}
+
+Deployment_Node(external_systems, "External Systems", "Network") {
+    System_Ext(iam_backend, "IAM Backend", "LDAP/Vault/Database", "User identity provider")
+    System_Ext(logging_system, "Logging System", "Syslog/ELK", "Audit and security logs")
+    System_Ext(metrics_system, "Metrics System", "Prometheus/Grafana", "MFA metrics and monitoring")
+}
+
+' Client interactions
+Rel(s3_client, s3_gateway, "HTTPS requests with MFA tokens", "Port 443/8080")
+Rel(totp_app, qr_generator, "QR code scanning for setup", "Camera/Manual entry")
+
+' Internal relationships
+Rel(s3_gateway, mfa_service, "MFA operations")
+Rel(mfa_service, mfa_data, "Read/write MFA data", "File I/O")
+Rel(s3_gateway, config_files, "Load configuration", "File I/O")
+
+' External system connections
+Rel(s3_gateway, iam_backend, "User authentication", "LDAP/HTTP/DB")
+Rel(s3_gateway, logging_system, "Security audit logs", "Syslog/HTTP")
+Rel(s3_gateway, metrics_system, "MFA metrics", "HTTP/Push")
+
+' Security boundaries
+Boundary(dmz, "DMZ", "Public network access") {
+    Rel(client_env, gateway_server, "HTTPS", "Encrypted connection")
+}
+
+Boundary(internal, "Internal Network", "Secure internal systems") {
+    Rel(gateway_server, external_systems, "Internal protocols", "Secure connections")
+}
+
+note right of mfa_data
+  **MFA Data Security:**
+  - Files stored with 0600 permissions
+  - Secrets encrypted at rest
+  - Backup codes hashed
+  - User data isolated per file
+end note
+
+note right of s3_gateway
+  **MFA Features:**
+  - TOTP token validation
+  - Backup code support
+  - User lockout protection
+  - Policy-based enforcement
+  - Comprehensive audit logging
+end note
+
+SHOW_LEGEND()
+@enduml

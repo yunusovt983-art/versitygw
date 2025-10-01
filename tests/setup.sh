@@ -1,0 +1,175 @@
+#!/usr/bin/env bats
+
+# Copyright 2024 Versity Software
+# This file is licensed under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http:#www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+source ./tests/env.sh
+source ./tests/report.sh
+source ./tests/setup_mc.sh
+source ./tests/util/util_object.sh
+source ./tests/versity.sh
+
+check_secrets_line() {
+  if [[ $secrets_line =~ ^(USER_ID_(ADMIN|USERPLUS|USER)_[0-9])= ]]; then
+    match=${BASH_REMATCH[1]}
+    role=$(echo -n "${BASH_REMATCH[2]}" | tr '[:upper:]' '[:lower:]')
+
+    if [ -z "${!match}" ]; then
+      log 2 "$match secrets parameter missing"
+      return 1
+    fi
+    username_env="${match/USER_ID/USERNAME}"
+    password_env="${match/USER_ID/PASSWORD}"
+    if [ -z "${!username_env}" ]; then
+      log 2 "$username_env secrets parameter missing"
+      return 1
+    fi
+    if [ -z "${!password_env}" ]; then
+      log 2 "$password_env secrets parameter missing"
+      return 1
+    fi
+    if ! user_exists "${!username_env}" && ! create_user_versitygw "${!username_env}" "${!password_env}" "$role"; then
+      log 2 "error creating user"
+      return 1
+    fi
+  fi
+  return 0
+}
+
+static_user_versitygw_setup() {
+  while read -r secrets_line || [ -n "$secrets_line" ]; do
+    if ! check_secrets_line; then
+      return 1
+    fi
+  done < "$SECRETS_FILE"
+}
+
+# bats setup function
+setup() {
+  base_setup
+
+  if [ -n "$TEST_LOG_FILE" ]; then
+    if ! error=$(touch "$TEST_LOG_FILE.tmp" 2>&1); then
+      log 2 "error creating log file: $error"
+      exit 1
+    fi
+    export TEST_LOG_FILE
+  fi
+
+  if [ "$RUN_USERS" == "true" ] && [ "$DIRECT" != "true" ] && [ "$CREATE_STATIC_USERS_IF_NONEXISTENT" == "true" ]; then
+    if ! static_user_versitygw_setup; then
+      log 2 "error setting up static versitygw users"
+      return 1
+    fi
+  fi
+
+  log 4 "Running test $BATS_TEST_NAME"
+  if [[ $LOG_LEVEL -ge 5 ]] || [[ -n "$TIME_LOG" ]]; then
+    start_time=$(date +%s)
+    export start_time
+  fi
+
+  if [[ $RUN_S3CMD == true ]]; then
+    S3CMD_OPTS=()
+    S3CMD_OPTS+=(-c "$S3CMD_CONFIG")
+    S3CMD_OPTS+=(--access_key="$AWS_ACCESS_KEY_ID")
+    S3CMD_OPTS+=(--secret_key="$AWS_SECRET_ACCESS_KEY")
+    export S3CMD_CONFIG S3CMD_OPTS
+  fi
+
+  if [[ $RUN_MC == true ]]; then
+    check_add_mc_alias
+  fi
+
+  export AWS_PROFILE
+  log 4 "********** END SETUP **********"
+}
+
+delete_temp_log_if_exists() {
+  if [ -e "$TEST_LOG_FILE.tmp" ]; then
+    if ! error=$(rm "$TEST_LOG_FILE.tmp" 2>&1); then
+      log 2 "error deleting temp log: $error"
+      return 1
+    fi
+  fi
+  return 0
+}
+
+post_versity_cleanup() {
+  if [[ $LOG_LEVEL -ge 5 ]] || [[ -n "$TIME_LOG" ]]; then
+    end_time=$(date +%s)
+    total_time=$((end_time - start_time))
+    log 4 "Total test time: $total_time"
+    if [[ -n "$TIME_LOG" ]]; then
+      echo "$BATS_TEST_NAME: ${total_time}s" >> "$TIME_LOG"
+    fi
+  fi
+  if [[ -n "$COVERAGE_DB" ]]; then
+    record_result
+  fi
+  if [[ "$BATS_TEST_COMPLETED" -ne 1 ]]; then
+    if [[ -e "$COMMAND_LOG" ]]; then
+      cat "$COMMAND_LOG"
+      echo "**********************************************************************************"
+    fi
+    if [[ -e "$TEST_LOG_FILE.tmp" ]]; then
+      echo "********************************** LOG *******************************************"
+      cat "$TEST_LOG_FILE.tmp"
+      echo "**********************************************************************************"
+    fi
+  fi
+  if ! delete_command_log; then
+    log 3 "error deleting command log"
+  fi
+  if [ -e "$TEST_LOG_FILE.tmp" ]; then
+    if ! error=$(cat "$TEST_LOG_FILE.tmp" >> "$TEST_LOG_FILE" 2>&1); then
+      log 3 "error appending temp log to main log: $error"
+    fi
+    if ! delete_temp_log_if_exists; then
+      log 3 "error deleting temp log"
+    fi
+  fi
+}
+
+# bats teardown function
+teardown() {
+  # shellcheck disable=SC2154
+  log 4 "********** BEGIN TEARDOWN **********"
+  if [ "$DELETE_BUCKETS_AFTER_TEST" != "false" ]; then
+    log 5 "deleting or clearing buckets"
+    if ! bucket_cleanup_if_bucket_exists "$BUCKET_ONE_NAME"; then
+      log 3 "error deleting bucket $BUCKET_ONE_NAME or contents"
+    fi
+    if ! bucket_cleanup_if_bucket_exists "$BUCKET_TWO_NAME"; then
+      log 3 "error deleting bucket $BUCKET_TWO_NAME or contents"
+    fi
+  fi
+  if user_exists "$USERNAME_ONE" && ! delete_user "$USERNAME_ONE"; then
+    log 3 "error deleting user $USERNAME_ONE"
+  fi
+  if user_exists "$USERNAME_TWO" && ! delete_user "$USERNAME_TWO"; then
+    log 3 "error deleting user $USERNAME_TWO"
+  fi
+  if [ "$AUTOGENERATE_USERS" == "true" ] && ! delete_autogenerated_users; then
+    log 3 "error deleting autocreated users"
+  fi
+  if [ "$REMOVE_TEST_FILE_FOLDER" == "true" ]; then
+    log 6 "removing test file folder"
+    if ! error=$(rm -rf "${TEST_FILE_FOLDER:?}" 2>&1); then
+      log 3 "unable to remove test file folder: $error"
+    fi
+  fi
+  stop_versity
+  post_versity_cleanup
+}

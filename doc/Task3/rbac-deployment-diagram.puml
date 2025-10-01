@@ -1,0 +1,105 @@
+@startuml Task3_RBAC_Deployment_Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Deployment.puml
+
+title Enhanced RBAC Deployment Architecture - Task 3
+
+Deployment_Node(client_env, "Client Environment", "User's development/production environment") {
+    Deployment_Node(workstation, "Developer Workstation", "Linux/macOS/Windows") {
+        Container(s3_sdk, "AWS S3 SDK", "Python/Go/Java/etc", "S3 client applications")
+        Container(admin_cli, "RBAC Admin CLI", "Go", "Command-line role management tools")
+    }
+    
+    Deployment_Node(mobile_device, "Mobile Device", "iOS/Android") {
+        Container(mobile_app, "Mobile S3 App", "React Native/Flutter", "Mobile S3 applications")
+    }
+}
+
+Deployment_Node(gateway_cluster, "S3 Gateway Cluster", "Kubernetes/Docker Swarm") {
+    Deployment_Node(gateway_node1, "Gateway Node 1", "Linux Container") {
+        Container(s3_api_1, "S3 API Server", "Go/Fiber", "Primary S3 API endpoint")
+        Container(rbac_engine_1, "RBAC Engine", "Go", "Enhanced role-based access control")
+        Container(role_cache_1, "Role Cache", "Go/Memory", "In-memory role permissions cache")
+    }
+    
+    Deployment_Node(gateway_node2, "Gateway Node 2", "Linux Container") {
+        Container(s3_api_2, "S3 API Server", "Go/Fiber", "Secondary S3 API endpoint")
+        Container(rbac_engine_2, "RBAC Engine", "Go", "Enhanced role-based access control")
+        Container(role_cache_2, "Role Cache", "Go/Memory", "In-memory role permissions cache")
+    }
+    
+    Deployment_Node(load_balancer, "Load Balancer", "NGINX/HAProxy") {
+        Container(lb_service, "Load Balancer", "NGINX", "Distributes requests across gateway nodes")
+    }
+}
+
+Deployment_Node(storage_tier, "Storage Tier", "Persistent Storage") {
+    Deployment_Node(role_storage, "Role Storage", "File System/Database") {
+        ContainerDb(role_db, "Role Database", "JSON Files/SQLite", "Persistent role and permission storage")
+        ContainerDb(audit_logs, "Audit Logs", "Log Files", "RBAC access decision logs")
+    }
+    
+    Deployment_Node(object_storage, "Object Storage", "Backend Storage") {
+        ContainerDb(s3_backend, "S3 Backend", "MinIO/AWS S3/GCS", "Actual object storage backend")
+    }
+}
+
+Deployment_Node(external_systems, "External Systems", "Third-party services") {
+    System_Ext(iam_provider, "IAM Provider", "External identity provider (LDAP/AD/OAuth)")
+    System_Ext(monitoring, "Monitoring System", "Prometheus/Grafana for RBAC metrics")
+    System_Ext(alerting, "Alerting System", "Alert manager for security events")
+}
+
+' Network boundaries
+Deployment_Node(dmz, "DMZ", "Demilitarized Zone") {
+    Deployment_Node(reverse_proxy, "Reverse Proxy", "NGINX/Cloudflare") {
+        Container(ssl_termination, "SSL Termination", "NGINX", "HTTPS termination and security")
+    }
+}
+
+' Client connections
+Rel(s3_sdk, ssl_termination, "HTTPS S3 API calls", "TLS 1.3")
+Rel(mobile_app, ssl_termination, "HTTPS S3 API calls", "TLS 1.3")
+Rel(admin_cli, ssl_termination, "HTTPS Admin API", "TLS 1.3")
+
+' DMZ to internal
+Rel(ssl_termination, lb_service, "HTTP (internal)", "Load balanced")
+
+' Load balancer to nodes
+Rel(lb_service, s3_api_1, "HTTP", "Primary")
+Rel(lb_service, s3_api_2, "HTTP", "Secondary")
+
+' Internal node communication
+Rel(s3_api_1, rbac_engine_1, "Local calls", "In-process")
+Rel(s3_api_2, rbac_engine_2, "Local calls", "In-process")
+Rel(rbac_engine_1, role_cache_1, "Memory access", "Local cache")
+Rel(rbac_engine_2, role_cache_2, "Memory access", "Local cache")
+
+' Storage access
+Rel(rbac_engine_1, role_db, "File I/O", "Role data persistence")
+Rel(rbac_engine_2, role_db, "File I/O", "Role data persistence")
+Rel(rbac_engine_1, audit_logs, "Log writes", "Audit trail")
+Rel(rbac_engine_2, audit_logs, "Log writes", "Audit trail")
+
+' Backend storage
+Rel(s3_api_1, s3_backend, "Storage operations", "Backend protocol")
+Rel(s3_api_2, s3_backend, "Storage operations", "Backend protocol")
+
+' External integrations
+Rel(rbac_engine_1, iam_provider, "Authentication", "LDAP/OAuth")
+Rel(rbac_engine_2, iam_provider, "Authentication", "LDAP/OAuth")
+Rel(rbac_engine_1, monitoring, "Metrics", "Prometheus")
+Rel(rbac_engine_2, monitoring, "Metrics", "Prometheus")
+Rel(monitoring, alerting, "Alerts", "Webhook/SMTP")
+
+' Cache synchronization (for distributed deployment)
+Rel(role_cache_1, role_cache_2, "Cache sync", "Internal protocol")
+
+note right of gateway_cluster : "High Availability\n- Multiple gateway nodes\n- Load balancing\n- Shared role storage\n- Cache synchronization"
+
+note right of storage_tier : "Persistent Storage\n- Role definitions\n- Permission mappings\n- Audit trails\n- Backend objects"
+
+note right of external_systems : "External Integration\n- IAM providers\n- Monitoring systems\n- Alerting services\n- Compliance tools"
+
+note left of dmz : "Security Perimeter\n- SSL/TLS termination\n- DDoS protection\n- Rate limiting\n- WAF capabilities"
+
+@enduml

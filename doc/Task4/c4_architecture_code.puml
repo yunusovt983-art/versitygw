@@ -1,0 +1,71 @@
+@startuml Task4_Security_System_Code
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Code Diagram - Security Event Manager Implementation (Task 4)
+
+Component_Boundary(event_manager, "Security Event Manager") {
+    Component(security_event, "SecurityEvent", "Go Struct", "Core security event data structure")
+    Component(event_type, "SecurityEventType", "Go Const", "Enumeration of security event types")
+    Component(severity_level, "SecuritySeverity", "Go Const", "Security severity levels")
+    Component(audit_logger_impl, "SecurityAuditLogger", "Go Struct", "Main audit logger implementation")
+    Component(event_validator, "EventValidator", "Go Interface", "Validates security event data")
+    Component(pattern_detector, "PatternDetector", "Go Interface", "Detects suspicious patterns")
+}
+
+Component_Boundary(storage_layer, "Storage Layer") {
+    Component(event_storage, "EventStorage", "Go Interface", "Abstract event storage interface")
+    Component(memory_storage, "MemoryEventStorage", "Go Struct", "In-memory event storage implementation")
+    Component(file_storage, "FileEventStorage", "Go Struct", "File-based event storage implementation")
+}
+
+Component_Boundary(analysis_layer, "Analysis Layer") {
+    Component(risk_calculator, "RiskCalculator", "Go Struct", "Calculates security risk scores")
+    Component(threat_analyzer, "ThreatAnalyzer", "Go Struct", "Analyzes threats and attack patterns")
+    Component(compliance_checker, "ComplianceChecker", "Go Struct", "Checks compliance requirements")
+}
+
+' Relationships between components
+Rel(audit_logger_impl, security_event, "Creates", "struct instantiation")
+Rel(audit_logger_impl, event_validator, "Validates events", "interface call")
+Rel(audit_logger_impl, pattern_detector, "Detects patterns", "interface call")
+Rel(audit_logger_impl, event_storage, "Stores events", "interface call")
+
+Rel(event_validator, security_event, "Validates", "struct validation")
+Rel(pattern_detector, security_event, "Analyzes", "pattern matching")
+
+Rel(event_storage, memory_storage, "Implements", "interface implementation")
+Rel(event_storage, file_storage, "Implements", "interface implementation")
+
+Rel(pattern_detector, risk_calculator, "Uses", "composition")
+Rel(pattern_detector, threat_analyzer, "Uses", "composition")
+Rel(pattern_detector, compliance_checker, "Uses", "composition")
+
+Rel(risk_calculator, security_event, "Calculates risk for", "data analysis")
+Rel(threat_analyzer, security_event, "Analyzes threats in", "pattern analysis")
+Rel(compliance_checker, security_event, "Checks compliance of", "rule validation")
+
+' External dependencies
+Component_Ext(suspicious_detector, "SuspiciousActivityDetector", "External component")
+Component_Ext(alert_system_ext, "SecurityAlertSystem", "External component")
+
+Rel(audit_logger_impl, suspicious_detector, "Sends events to", "method call")
+Rel(pattern_detector, alert_system_ext, "Triggers alerts via", "event notification")
+
+note right of security_event
+  Core data structure containing:
+  - Event ID and timestamp
+  - Event type and severity
+  - User and session information
+  - IP address and user agent
+  - Risk score and metadata
+end note
+
+note right of audit_logger_impl
+  Main implementation with:
+  - Event logging and validation
+  - Pattern detection integration
+  - Storage management
+  - Concurrent access handling
+end note
+
+@enduml

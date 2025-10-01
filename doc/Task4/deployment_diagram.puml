@@ -1,0 +1,89 @@
+@startuml Task4_Deployment_Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Deployment.puml
+
+title Deployment Diagram - Security Audit & Monitoring System (Task 4)
+
+Deployment_Node(security_server, "Security Server", "Linux Server") {
+    Deployment_Node(go_runtime, "Go Runtime", "Go 1.21+") {
+        Container(security_audit_service, "Security Audit Service", "Go Application", "Main security monitoring service")
+        Container(alert_service, "Alert Service", "Go Application", "Security alerting and user blocking")
+        Container(reporting_service, "Reporting Service", "Go Application", "Security reporting and audit trails")
+    }
+    
+    Deployment_Node(file_system, "File System", "Local Storage") {
+        ContainerDb(audit_logs, "Audit Log Files", "JSON/Text Files", "Persistent security event storage")
+        ContainerDb(report_storage, "Report Storage", "Files", "Generated security reports")
+        ContainerDb(config_files, "Configuration", "YAML/JSON", "Security system configuration")
+    }
+}
+
+Deployment_Node(s3_cluster, "S3 Storage Cluster", "Distributed Storage") {
+    Deployment_Node(s3_node1, "S3 Node 1", "Storage Server") {
+        Container(s3_service1, "S3 Service", "Go Application", "Object storage service")
+        ContainerDb(object_store1, "Object Storage", "File System", "User data storage")
+    }
+    
+    Deployment_Node(s3_node2, "S3 Node 2", "Storage Server") {
+        Container(s3_service2, "S3 Service", "Go Application", "Object storage service")
+        ContainerDb(object_store2, "Object Storage", "File System", "User data storage")
+    }
+}
+
+Deployment_Node(monitoring_infrastructure, "Monitoring Infrastructure", "External Services") {
+    Deployment_Node(metrics_server, "Metrics Server", "Monitoring Server") {
+        Container(prometheus, "Prometheus", "Metrics Collection", "Time-series metrics database")
+        Container(grafana, "Grafana", "Visualization", "Metrics dashboards and alerting")
+    }
+    
+    Deployment_Node(notification_server, "Notification Server", "Alert Server") {
+        Container(email_service, "Email Service", "SMTP", "Email notifications")
+        Container(webhook_service, "Webhook Service", "HTTP", "Webhook notifications")
+    }
+}
+
+Deployment_Node(admin_workstation, "Admin Workstation", "Desktop/Laptop") {
+    Container(admin_cli, "Security Admin CLI", "Go Binary", "Command-line security management")
+    Container(web_browser, "Web Browser", "Browser", "Access to dashboards and reports")
+}
+
+' Network connections
+Rel(security_audit_service, s3_service1, "Monitor access logs", "HTTPS")
+Rel(security_audit_service, s3_service2, "Monitor access logs", "HTTPS")
+Rel(alert_service, email_service, "Send alerts", "SMTP")
+Rel(alert_service, webhook_service, "Send alerts", "HTTPS")
+Rel(security_audit_service, prometheus, "Send metrics", "HTTP")
+Rel(admin_cli, security_audit_service, "Manage security", "HTTPS/API")
+Rel(web_browser, grafana, "View dashboards", "HTTPS")
+Rel(web_browser, reporting_service, "Access reports", "HTTPS")
+
+' Storage relationships
+Rel(security_audit_service, audit_logs, "Write logs", "File I/O")
+Rel(reporting_service, report_storage, "Store reports", "File I/O")
+Rel(security_audit_service, config_files, "Read config", "File I/O")
+
+note right of security_server
+  Security Server hosts all core
+  security monitoring components:
+  - Real-time event processing
+  - Pattern detection and analysis
+  - Automated alerting and blocking
+  - Report generation and export
+end note
+
+note right of s3_cluster
+  S3 Storage Cluster provides:
+  - Distributed object storage
+  - Access logging integration
+  - High availability and scalability
+  - Security event source data
+end note
+
+note right of monitoring_infrastructure
+  External monitoring provides:
+  - Metrics collection and storage
+  - Alerting and notifications
+  - Dashboard visualization
+  - Integration with existing tools
+end note
+
+@enduml

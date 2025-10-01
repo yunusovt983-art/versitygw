@@ -1,0 +1,16 @@
+# github.com/versity/versitygw/auth
+auth/system_reports.go:54:6: PerformanceReport redeclared in this block
+	auth/performance_monitor.go:202:6: other declaration of PerformanceReport
+auth/system_reports.go:114:20: undefined: SecurityMetrics
+auth/system_reports.go:164:6: ComplianceRequirement redeclared in this block
+	auth/security_reporting_system.go:158:6: other declaration of ComplianceRequirement
+auth/backward_compatibility.go:29:22: undefined: EnhancedRoleManager
+auth/migration_service.go:27:22: undefined: EnhancedRoleManager
+auth/diagnostic_utils.go:27:26: undefined: HealthCheckSuiteReport
+auth/diagnostic_utils.go:28:30: undefined: SystemIntegrityReport
+auth/diagnostic_utils.go:31:36: undefined: BottleneckAnalysisReport
+auth/diagnostic_utils.go:32:29: undefined: ResourceProfileReport
+auth/diagnostic_utils.go:35:27: undefined: ConfigurationAnalysisReport
+auth/diagnostic_utils.go:35:27: too many errors
+FAIL	github.com/versity/versitygw/backend/ipfs [build failed]
+FAIL

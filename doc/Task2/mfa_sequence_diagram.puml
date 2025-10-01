@@ -1,0 +1,137 @@
+@startuml Task2_MFA_Sequence_Diagram
+!theme plain
+
+title MFA Authentication Sequence Diagram - Task 2
+
+actor "S3 User" as User
+participant "S3 Client" as Client
+participant "S3 Gateway" as Gateway
+participant "Enhanced Auth" as Auth
+participant "MFA Middleware" as MFAMw
+participant "MFA Service" as MFAService
+participant "TOTP Generator" as TOTP
+participant "MFA Storage" as Storage
+participant "TOTP App" as TOTPApp
+participant "Audit Logger" as Logger
+
+== MFA Setup Phase ==
+
+User -> Client: Request MFA setup
+Client -> Gateway: POST /mfa/setup
+Gateway -> Auth: Authenticate user (V4 signature)
+Auth -> Gateway: User authenticated
+Gateway -> MFAService: GenerateSecret(userID)
+MFAService -> TOTP: GenerateSecret()
+TOTP -> MFAService: Return base32 secret
+MFAService -> MFAService: Generate backup codes
+MFAService -> Gateway: Return MFASecret with QR code
+Gateway -> Client: Return setup data (secret, QR, backup codes)
+Client -> User: Display QR code and backup codes
+
+User -> TOTPApp: Scan QR code
+TOTPApp -> TOTPApp: Store secret and generate tokens
+
+User -> Client: Confirm setup with TOTP token
+Client -> Gateway: POST /mfa/enable with token
+Gateway -> MFAService: ValidateTOTP(userID, token)
+MFAService -> TOTP: ValidateTOTP(secret, token, timestamp)
+TOTP -> MFAService: Token valid
+MFAService -> Storage: StoreMFAData(userID, mfaData)
+Storage -> MFAService: Data stored
+MFAService -> Gateway: MFA enabled successfully
+Gateway -> Logger: Log MFA setup completion
+Gateway -> Client: MFA setup complete
+
+== MFA Authentication Phase ==
+
+User -> TOTPApp: Generate current TOTP token
+TOTPApp -> User: Display 6-digit token
+
+User -> Client: Make S3 request with MFA token
+Client -> Gateway: S3 API request with X-Amz-MFA header
+Gateway -> Auth: Authenticate request
+Auth -> Auth: Validate V4 signature
+Auth -> Auth: Check if MFA required
+Auth -> MFAMw: Extract MFA token from request
+MFAMw -> MFAService: ValidateTOTP(userID, token)
+
+alt Valid TOTP Token
+    MFAService -> Storage: GetMFAData(userID)
+    Storage -> MFAService: Return user MFA data
+    MFAService -> MFAService: Check if user locked
+    MFAService -> TOTP: ValidateTOTP(secret, token, now)
+    TOTP -> MFAService: Token valid
+    MFAService -> Storage: UpdateLastUsed(userID, now)
+    MFAService -> Storage: ResetFailedAttempts(userID)
+    MFAService -> MFAMw: Validation successful
+    MFAMw -> Logger: Log successful MFA validation
+    MFAMw -> Gateway: Set MFA verified context
+    Gateway -> Gateway: Process S3 request
+    Gateway -> Client: S3 response
+    Client -> User: Request completed
+
+else Invalid TOTP Token
+    MFAService -> Storage: IncrementFailedAttempts(userID)
+    alt Max attempts exceeded
+        MFAService -> Storage: LockUser(userID, lockoutDuration)
+        MFAService -> MFAMw: Return user locked error
+        MFAMw -> Logger: Log user lockout
+        MFAMw -> Gateway: Return 429 Too Many Requests
+    else Attempts within limit
+        MFAService -> MFAMw: Return invalid token error
+        MFAMw -> Logger: Log failed MFA attempt
+        MFAMw -> Gateway: Return 401 Unauthorized
+    end
+    Gateway -> Client: Error response
+    Client -> User: Authentication failed
+end
+
+== Backup Code Usage ==
+
+User -> Client: Make S3 request with backup code
+Client -> Gateway: S3 API request with backup code as MFA token
+Gateway -> Auth: Authenticate request
+Auth -> MFAMw: Extract MFA token (backup code)
+MFAMw -> MFAService: ValidateTOTP(userID, backupCode)
+MFAService -> MFAService: TOTP validation fails
+MFAService -> MFAService: Try backup code validation
+MFAService -> Storage: GetMFAData(userID)
+Storage -> MFAService: Return user MFA data
+MFAService -> MFAService: Hash backup code and compare
+MFAService -> Storage: RemoveUsedBackupCode(userID, code)
+MFAService -> Storage: UpdateLastUsed(userID, now)
+MFAService -> MFAMw: Backup code validation successful
+MFAMw -> Logger: Log backup code usage
+MFAMw -> Gateway: Set MFA verified context
+Gateway -> Gateway: Process S3 request
+Gateway -> Client: S3 response
+Client -> User: Request completed (warn about backup code usage)
+
+== Error Handling ==
+
+User -> Client: Make request with expired/invalid token
+Client -> Gateway: S3 API request with invalid MFA token
+Gateway -> Auth: Authenticate request
+Auth -> MFAMw: Extract invalid MFA token
+MFAMw -> MFAService: ValidateTOTP(userID, invalidToken)
+MFAService -> Storage: GetMFAData(userID)
+Storage -> MFAService: Return user MFA data
+MFAService -> TOTP: ValidateTOTP(secret, invalidToken, now)
+TOTP -> MFAService: Token invalid (outside time window)
+MFAService -> Storage: IncrementFailedAttempts(userID)
+MFAService -> MFAMw: Return invalid token error
+MFAMw -> Logger: Log failed MFA attempt with details
+MFAMw -> Gateway: Return 401 with specific error code
+Gateway -> Client: MFA validation failed response
+Client -> User: Display error and request new token
+
+note over User, Logger
+  **Security Features:**
+  - Time-based token validation (30-second windows)
+  - Failed attempt tracking and user lockout
+  - Backup codes for emergency access
+  - Comprehensive audit logging
+  - Rate limiting and abuse prevention
+end note
+
+@enduml

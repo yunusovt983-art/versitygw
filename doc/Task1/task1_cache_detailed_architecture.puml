@@ -1,0 +1,203 @@
+@startuml Task1_Cache_Detailed_Architecture
+!theme plain
+
+title Enhanced Cache System - Detailed Architecture (Task1)
+
+package "Enhanced Cache System" {
+    
+    ' =================================
+    ' CACHE ENTRY TYPES
+    ' =================================
+    enum CacheEntryType {
+        UserCredentials (TTL: 15min)
+        UserRoles (TTL: 30min)
+        Permissions (TTL: 1hour)
+        MFASettings (TTL: 2hours)
+        SessionData (TTL: 10min)
+    }
+    
+    ' =================================
+    ' CORE CACHE STRUCTURES
+    ' =================================
+    class CacheEntry {
+        -value: interface{}
+        -expiry: time.Time
+        -entryType: CacheEntryType
+        -accessTime: time.Time
+        -key: string
+        +isExpired(): bool
+        +touch(): void
+    }
+    
+    class CacheStats {
+        +Hits: int64
+        +Misses: int64
+        +Evictions: int64
+        +Size: int
+        +MaxSize: int
+        +FallbackActive: bool
+        +LastCleanup: time.Time
+        +HitRate(): float64
+    }
+    
+    ' =================================
+    ' ENHANCED CACHE CORE
+    ' =================================
+    class EnhancedCache {
+        -entries: map[string]*CacheEntry
+        -maxSize: int
+        -fallbackMode: bool
+        -stats: CacheStats
+        -defaultTTLs: map[CacheEntryType]time.Duration
+        -mu: sync.RWMutex
+        -cancel: context.CancelFunc
+        
+        +Get(key, entryType): (interface{}, bool)
+        +Set(key, value, ttl, entryType): void
+        +Invalidate(pattern): error
+        +InvalidateUser(userID): error
+        +InvalidateType(entryType): error
+        +SetFallbackMode(enabled): void
+        +GetStats(): CacheStats
+        +Shutdown(): error
+        -evictLRU(): void
+        -cleanup(): void
+        -cleanupLoop(ctx, interval): void
+    }
+    
+    ' =================================
+    ' IAM CACHE WRAPPER
+    ' =================================
+    class EnhancedIAMCache {
+        -service: IAMService
+        -cache: EnhancedCache
+        -fallbackCache: EnhancedCache
+        
+        +CreateAccount(account): error
+        +GetUserAccount(access): (Account, error)
+        +UpdateUserAccount(access, props): error
+        +DeleteUserAccount(access): error
+        +ListUserAccounts(): ([]Account, error)
+        +Shutdown(): error
+        +InvalidateUser(userID): error
+        +InvalidatePattern(pattern): error
+        +InvalidateType(entryType): error
+        +SetFallbackMode(enabled): void
+        +GetCacheStats(): CacheStats
+        +GetFallbackCacheStats(): CacheStats
+        +IsHealthy(): bool
+        -getUserKey(access): string
+        -getRoleKey(userID): string
+        -getPermissionKey(userID): string
+        -getMFAKey(userID): string
+        -getSessionKey(sessionID): string
+    }
+    
+    ' =================================
+    ' CONFIGURATION
+    ' =================================
+    class EnhancedCacheConfig {
+        +MaxSize: int
+        +CleanupInterval: time.Duration
+        +DefaultTTLs: map[CacheEntryType]time.Duration
+    }
+    
+    class EnhancedIAMCacheConfig {
+        +CacheConfig: *EnhancedCacheConfig
+        +FallbackCacheConfig: *EnhancedCacheConfig
+        +FallbackEnabled: bool
+    }
+    
+    ' =================================
+    ' INTERFACES
+    ' =================================
+    interface EnhancedCacheInterface {
+        +Get(key, entryType): (interface{}, bool)
+        +Set(key, value, ttl, entryType): void
+        +Invalidate(pattern): error
+        +InvalidateUser(userID): error
+        +InvalidateType(entryType): error
+        +SetFallbackMode(enabled): void
+        +GetStats(): CacheStats
+        +Shutdown(): error
+    }
+    
+    interface IAMService {
+        +CreateAccount(Account): error
+        +GetUserAccount(string): (Account, error)
+        +UpdateUserAccount(string, MutableProps): error
+        +DeleteUserAccount(string): error
+        +ListUserAccounts(): ([]Account, error)
+        +Shutdown(): error
+    }
+    
+    ' =================================
+    ' RELATIONSHIPS
+    ' =================================
+    EnhancedCache ..|> EnhancedCacheInterface
+    EnhancedIAMCache ..|> IAMService
+    EnhancedIAMCache --> EnhancedCache : primary cache
+    EnhancedIAMCache --> EnhancedCache : fallback cache
+    EnhancedIAMCache --> IAMService : delegates to
+    EnhancedCache --> CacheEntry : manages
+    EnhancedCache --> CacheStats : maintains
+    EnhancedCache --> CacheEntryType : uses
+    CacheEntry --> CacheEntryType : typed by
+    EnhancedCache ..> EnhancedCacheConfig : configured by
+    EnhancedIAMCache ..> EnhancedIAMCacheConfig : configured by
+}
+
+' =================================
+' EXTERNAL DEPENDENCIES
+' =================================
+package "Base IAM Services" {
+    class LDAPService {
+        +CreateAccount(Account): error
+        +GetUserAccount(string): (Account, error)
+        +UpdateUserAccount(string, MutableProps): error
+        +DeleteUserAccount(string): error
+        +ListUserAccounts(): ([]Account, error)
+    }
+    
+    class VaultService {
+        +CreateAccount(Account): error
+        +GetUserAccount(string): (Account, error)
+        +UpdateUserAccount(string, MutableProps): error
+        +DeleteUserAccount(string): error
+        +ListUserAccounts(): ([]Account, error)
+    }
+    
+    class S3IAMService {
+        +CreateAccount(Account): error
+        +GetUserAccount(string): (Account, error)
+        +UpdateUserAccount(string, MutableProps): error
+        +DeleteUserAccount(string): error
+        +ListUserAccounts(): ([]Account, error)
+    }
+    
+    class IPAService {
+        +CreateAccount(Account): error
+        +GetUserAccount(string): (Account, error)
+        +UpdateUserAccount(string, MutableProps): error
+        +DeleteUserAccount(string): error
+        +ListUserAccounts(): ([]Account, error)
+    }
+}
+
+LDAPService ..|> IAMService
+VaultService ..|> IAMService
+S3IAMService ..|> IAMService
+IPAService ..|> IAMService
+
+' =================================
+' CACHE FLOW ANNOTATIONS
+' =================================
+note right of EnhancedCache : "LRU Eviction Policy\n- Tracks access time\n- Evicts least recently used\n- Configurable max size"
+
+note left of EnhancedCache : "TTL Management\n- Per-type default TTLs\n- Automatic expiration\n- Background cleanup"
+
+note bottom of EnhancedIAMCache : "Fallback Mechanism\n- Dual cache system\n- Extended TTL for fallback\n- Health monitoring\n- Graceful degradation"
+
+note top of CacheStats : "Performance Monitoring\n- Hit/miss ratios\n- Eviction counts\n- Cache size tracking\n- Fallback status"
+
+@enduml

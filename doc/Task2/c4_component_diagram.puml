@@ -1,0 +1,126 @@
+@startuml Task2_Component_Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram - MFA Service Components (Task 2)
+
+Container(s3_api_server, "S3 API Server", "Go/Fiber", "Main API server")
+Container(mfa_middleware, "MFA Middleware", "Go Middleware", "HTTP MFA validation")
+
+Container_Boundary(mfa_service_container, "MFA Service Container") {
+    Component_Boundary(interfaces, "Service Interfaces") {
+        Component(mfa_service_interface, "MFAService", "Interface", "Core MFA operations contract")
+        Component(mfa_storage_interface, "MFAStorage", "Interface", "Data persistence contract")
+    }
+    
+    Component_Boundary(core_services, "Core Service Implementations") {
+        Component(mfa_service_impl, "MFAServiceImpl", "Service", "Main MFA service implementation")
+        Component(totp_generator, "TOTPGenerator", "Component", "RFC 6238 TOTP implementation")
+        Component(qr_code_generator, "QRCodeGenerator", "Component", "QR code generation utilities")
+        Component(mfa_token_validator, "MFATokenValidator", "Component", "Token validation utilities")
+    }
+    
+    Component_Boundary(storage_implementations, "Storage Implementations") {
+        Component(file_mfa_storage, "FileMFAStorage", "Storage", "File-based MFA data storage")
+        Component(memory_mfa_storage, "MemoryMFAStorage", "Storage", "In-memory storage for testing")
+    }
+    
+    Component_Boundary(data_models, "Data Models") {
+        Component(mfa_secret, "MFASecret", "Model", "MFA setup data structure")
+        Component(mfa_status, "MFAStatus", "Model", "User MFA status information")
+        Component(mfa_config, "MFAConfig", "Model", "MFA system configuration")
+        Component(mfa_user_data, "MFAUserData", "Model", "Persistent user MFA data")
+        Component(mfa_policy, "MFAPolicy", "Model", "MFA enforcement policies")
+    }
+    
+    Component_Boundary(policy_engine, "Policy Engine") {
+        Component(policy_evaluator, "PolicyEvaluator", "Component", "MFA policy evaluation logic")
+        Component(role_checker, "RoleChecker", "Component", "Role-based MFA requirements")
+    }
+    
+    Component_Boundary(security_components, "Security Components") {
+        Component(lockout_manager, "LockoutManager", "Component", "User lockout and rate limiting")
+        Component(backup_code_manager, "BackupCodeManager", "Component", "Backup code generation and validation")
+        Component(secret_generator, "SecretGenerator", "Component", "Cryptographically secure secret generation")
+    }
+    
+    Component_Boundary(error_handling, "Error Handling") {
+        Component(mfa_error_handler, "MFAErrorHandler", "Component", "MFA-specific error processing")
+        Component(mfa_error_codes, "MFAErrorCodes", "Constants", "Error code definitions")
+    }
+}
+
+ContainerDb(mfa_data_store, "MFA Data Store", "File System", "Persistent MFA data")
+System_Ext(iam_system, "IAM System", "External identity provider")
+
+' Interface implementations
+Rel(mfa_service_impl, mfa_service_interface, "implements")
+Rel(file_mfa_storage, mfa_storage_interface, "implements")
+Rel(memory_mfa_storage, mfa_storage_interface, "implements")
+
+' Service dependencies
+Rel(mfa_service_impl, mfa_storage_interface, "uses")
+Rel(mfa_service_impl, totp_generator, "uses")
+Rel(mfa_service_impl, qr_code_generator, "uses")
+Rel(mfa_service_impl, policy_evaluator, "uses")
+Rel(mfa_service_impl, lockout_manager, "uses")
+Rel(mfa_service_impl, backup_code_manager, "uses")
+
+' Component relationships
+Rel(totp_generator, secret_generator, "uses")
+Rel(backup_code_manager, secret_generator, "uses")
+Rel(policy_evaluator, role_checker, "uses")
+Rel(mfa_service_impl, mfa_error_handler, "uses")
+
+' Data model usage
+Rel(mfa_service_impl, mfa_secret, "creates/manages")
+Rel(mfa_service_impl, mfa_status, "returns")
+Rel(mfa_service_impl, mfa_user_data, "persists")
+Rel(mfa_service_impl, mfa_policy, "evaluates")
+Rel(mfa_service_impl, mfa_config, "configured by")
+
+' External interactions
+Rel(s3_api_server, mfa_service_interface, "uses")
+Rel(mfa_middleware, mfa_service_interface, "uses")
+Rel(mfa_middleware, mfa_token_validator, "uses")
+
+' Storage interactions
+Rel(file_mfa_storage, mfa_data_store, "reads/writes")
+Rel(file_mfa_storage, mfa_user_data, "serializes")
+
+' External system integration
+Rel(role_checker, iam_system, "queries user roles")
+
+' Error handling
+Rel(mfa_service_impl, mfa_error_codes, "uses")
+Rel(mfa_error_handler, mfa_error_codes, "uses")
+
+note right of mfa_service_impl
+  **Core Responsibilities:**
+  - Secret generation and management
+  - TOTP token validation
+  - Backup code operations
+  - Policy enforcement
+  - User lockout management
+  - Audit logging coordination
+end note
+
+note right of file_mfa_storage
+  **Storage Features:**
+  - JSON file persistence
+  - Atomic write operations
+  - File permission security (0600)
+  - User data isolation
+  - Backup and recovery support
+end note
+
+note right of policy_evaluator
+  **Policy Types:**
+  - Role-based requirements
+  - User-specific rules
+  - Operation-based enforcement
+  - Time-based policies
+  - Grace period handling
+end note
+
+SHOW_LEGEND()
+@enduml

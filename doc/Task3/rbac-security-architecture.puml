@@ -1,0 +1,173 @@
+@startuml Task3_RBAC_Security_Architecture
+!theme plain
+
+title Enhanced RBAC Security Architecture - Task 3
+
+package "Security Layers" {
+    
+    package "Authentication Layer" {
+        component [V4 Signature Validation] as v4_auth
+        component [IAM Integration] as iam_auth
+        component [MFA Validation] as mfa_auth
+        component [Session Management] as session_mgmt
+        
+        v4_auth --> iam_auth : "Verify credentials"
+        iam_auth --> mfa_auth : "Check MFA requirements"
+        mfa_auth --> session_mgmt : "Create/validate session"
+    }
+    
+    package "Enhanced RBAC Core Security" {
+        component [Role Validation] as role_validation
+        component [Permission Evaluation] as perm_eval
+        component [Hierarchy Resolution] as hierarchy_res
+        component [Deny Override Engine] as deny_override
+        component [Permission Aggregation] as perm_aggregation
+        
+        role_validation --> hierarchy_res : "Expand role hierarchy"
+        hierarchy_res --> perm_aggregation : "Collect permissions"
+        perm_aggregation --> perm_eval : "Evaluate combined permissions"
+        perm_eval --> deny_override : "Apply deny precedence"
+    }
+    
+    package "Data Security" {
+        component [Role Data Encryption] as role_encryption
+        component [Permission Hashing] as perm_hashing
+        component [Secure Storage] as secure_storage
+        component [Access Control Lists] as file_acl
+        
+        role_encryption --> secure_storage : "Encrypted role data"
+        perm_hashing --> secure_storage : "Hashed sensitive data"
+        secure_storage --> file_acl : "File permissions (0600)"
+    }
+    
+    package "Attack Prevention" {
+        component [Rate Limiting] as rate_limit
+        component [Input Validation] as input_validation
+        component [SQL Injection Prevention] as sql_prevention
+        component [Path Traversal Protection] as path_protection
+        component [Privilege Escalation Prevention] as priv_escalation
+        
+        input_validation --> sql_prevention : "Sanitize inputs"
+        input_validation --> path_protection : "Validate paths"
+        rate_limit --> priv_escalation : "Prevent brute force"
+    }
+    
+    package "Audit and Monitoring" {
+        component [Security Event Logging] as security_logging
+        component [Access Decision Audit] as access_audit
+        component [Role Change Tracking] as role_tracking
+        component [Anomaly Detection] as anomaly_detection
+        component [Compliance Reporting] as compliance
+        
+        security_logging --> access_audit : "Log access decisions"
+        access_audit --> role_tracking : "Track role changes"
+        role_tracking --> anomaly_detection : "Detect suspicious patterns"
+        anomaly_detection --> compliance : "Generate reports"
+    }
+    
+    package "Standards Compliance" {
+        component [RBAC Standard (NIST)] as nist_rbac
+        component [AWS IAM Compatibility] as aws_compat
+        component [GDPR Compliance] as gdpr
+        component [SOC 2 Controls] as soc2
+        
+        nist_rbac --> aws_compat : "Standard role model"
+        aws_compat --> gdpr : "Data protection"
+        gdpr --> soc2 : "Security controls"
+    }
+}
+
+package "Security Policies" {
+    
+    package "Access Control Policies" {
+        [Deny by Default] as deny_default
+        [Explicit Allow Required] as explicit_allow
+        [Deny Override Allow] as deny_override_policy
+        [Least Privilege Principle] as least_privilege
+        
+        deny_default --> explicit_allow : "Require explicit permissions"
+        explicit_allow --> deny_override_policy : "Deny takes precedence"
+        deny_override_policy --> least_privilege : "Minimal necessary access"
+    }
+    
+    package "Role Management Policies" {
+        [Role Separation] as role_separation
+        [Hierarchy Validation] as hierarchy_validation
+        [Circular Reference Prevention] as circular_prevention
+        [Role Assignment Approval] as role_approval
+        
+        role_separation --> hierarchy_validation : "Validate role structure"
+        hierarchy_validation --> circular_prevention : "Prevent cycles"
+        circular_prevention --> role_approval : "Require approval"
+    }
+    
+    package "Data Protection Policies" {
+        [Encryption at Rest] as encryption_rest
+        [Encryption in Transit] as encryption_transit
+        [Key Management] as key_mgmt
+        [Data Retention] as data_retention
+        
+        encryption_rest --> encryption_transit : "End-to-end encryption"
+        encryption_transit --> key_mgmt : "Secure key handling"
+        key_mgmt --> data_retention : "Secure data lifecycle"
+    }
+}
+
+package "Threat Mitigation" {
+    
+    package "Common Attacks" {
+        [Privilege Escalation] as priv_esc_threat
+        [Role Mining] as role_mining
+        [Permission Enumeration] as perm_enum
+        [Session Hijacking] as session_hijack
+        [Insider Threats] as insider_threat
+        
+        priv_esc_threat --> role_mining : "Prevent role discovery"
+        role_mining --> perm_enum : "Hide permission details"
+        perm_enum --> session_hijack : "Secure sessions"
+        session_hijack --> insider_threat : "Monitor internal access"
+    }
+    
+    package "Mitigation Strategies" {
+        [Multi-Factor Authentication] as mfa_mitigation
+        [Regular Access Reviews] as access_review
+        [Automated Deprovisioning] as auto_deprov
+        [Behavioral Analytics] as behavioral
+        [Zero Trust Model] as zero_trust
+        
+        mfa_mitigation --> access_review : "Regular validation"
+        access_review --> auto_deprov : "Remove unused access"
+        auto_deprov --> behavioral : "Monitor behavior"
+        behavioral --> zero_trust : "Never trust, always verify"
+    }
+}
+
+' Security flow connections
+session_mgmt --> role_validation : "Authenticated user"
+deny_override --> security_logging : "Log access decisions"
+perm_eval --> access_audit : "Audit permission checks"
+role_validation --> role_tracking : "Track role usage"
+
+' Policy enforcement
+deny_default --> deny_override : "Enforce deny by default"
+explicit_allow --> perm_eval : "Require explicit permissions"
+least_privilege --> perm_aggregation : "Minimal access principle"
+
+' Threat mitigation
+priv_esc_threat --> priv_escalation : "Prevent escalation"
+role_mining --> rate_limit : "Rate limit role queries"
+perm_enum --> input_validation : "Validate permission requests"
+
+' Compliance connections
+nist_rbac --> role_validation : "NIST RBAC model"
+aws_compat --> perm_eval : "AWS IAM compatibility"
+gdpr --> security_logging : "Privacy compliance"
+soc2 --> compliance : "Security controls"
+
+note right of "Security Layers" : "Defense in Depth\n- Multiple security layers\n- Fail-secure design\n- Comprehensive monitoring\n- Standards compliance"
+
+note right of "Security Policies" : "Policy Framework\n- Deny by default\n- Explicit permissions\n- Role governance\n- Data protection"
+
+note right of "Threat Mitigation" : "Threat Protection\n- Attack prevention\n- Behavioral monitoring\n- Zero trust model\n- Continuous validation"
+
+@enduml
