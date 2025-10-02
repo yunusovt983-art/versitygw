@@ -1,0 +1,159 @@
+@startuml Task2_MFA_Security_Architecture
+!theme plain
+
+title MFA Security Architecture - Task 2
+
+package "Security Layers" {
+    
+    package "Authentication Layer" {
+        [V4 Signature Validation] as V4Auth
+        [MFA Token Validation] as MFAAuth
+        [Enhanced Authentication] as EnhancedAuth
+        
+        V4Auth --> EnhancedAuth : "Standard auth"
+        MFAAuth --> EnhancedAuth : "MFA validation"
+    }
+    
+    package "MFA Core Security" {
+        [TOTP Generator] as TOTP
+        [Secret Generator] as SecretGen
+        [Backup Code Manager] as BackupMgr
+        [Lockout Manager] as LockoutMgr
+        
+        TOTP --> SecretGen : "Secure random"
+        BackupMgr --> SecretGen : "Code generation"
+    }
+    
+    package "Data Security" {
+        [Encrypted Storage] as Storage
+        [Hashed Backup Codes] as HashedCodes
+        [File Permissions] as FilePerms
+        [Atomic Operations] as AtomicOps
+        
+        Storage --> FilePerms : "0600 permissions"
+        Storage --> AtomicOps : "Safe writes"
+        BackupMgr --> HashedCodes : "SHA256 hashing"
+    }
+    
+    package "Policy Enforcement" {
+        [Role-based MFA] as RoleMFA
+        [Operation-based MFA] as OpMFA
+        [User Exemptions] as Exemptions
+        [Grace Periods] as GracePeriod
+        
+        RoleMFA --> EnhancedAuth : "Role checks"
+        OpMFA --> EnhancedAuth : "Operation checks"
+    }
+    
+    package "Attack Prevention" {
+        [Rate Limiting] as RateLimit
+        [User Lockout] as UserLockout
+        [Time Window Validation] as TimeWindow
+        [Replay Attack Prevention] as ReplayPrev
+        
+        LockoutMgr --> UserLockout : "Failed attempts"
+        TOTP --> TimeWindow : "30-second windows"
+        TOTP --> ReplayPrev : "Time-based validation"
+    }
+    
+    package "Audit & Monitoring" {
+        [Security Logging] as SecLog
+        [Failed Attempt Tracking] as FailTracking
+        [Success Metrics] as SuccessMetrics
+        [Alert Generation] as Alerts
+        
+        MFAAuth --> SecLog : "All events"
+        LockoutMgr --> FailTracking : "Attempt counts"
+        EnhancedAuth --> SuccessMetrics : "Success rates"
+    }
+}
+
+package "External Security" {
+    [TOTP Apps] as TOTPApps
+    [QR Code Security] as QRSec
+    [Network Security] as NetSec
+    [IAM Integration] as IAM
+    
+    TOTP --> TOTPApps : "RFC 6238"
+    SecretGen --> QRSec : "Secure setup"
+    EnhancedAuth --> NetSec : "HTTPS only"
+    EnhancedAuth --> IAM : "User validation"
+}
+
+package "Compliance & Standards" {
+    [RFC 6238 TOTP] as RFC6238
+    [RFC 4226 HOTP] as RFC4226
+    [Crypto Standards] as CryptoStd
+    [Security Best Practices] as BestPractices
+    
+    TOTP --> RFC6238 : "Compliant"
+    SecretGen --> CryptoStd : "crypto/rand"
+    Storage --> BestPractices : "Secure storage"
+}
+
+' Security flow annotations
+note right of V4Auth
+  **V4 Signature Security:**
+  - HMAC-SHA256 signing
+  - Request integrity validation
+  - Timestamp verification
+  - Credential validation
+end note
+
+note right of TOTP
+  **TOTP Security Features:**
+  - RFC 6238 compliance
+  - 30-second time windows
+  - HMAC-SHA1 algorithm
+  - Base32 secret encoding
+  - Time skew tolerance (±1 window)
+end note
+
+note right of SecretGen
+  **Cryptographic Security:**
+  - crypto/rand for randomness
+  - 160-bit (20-byte) secrets
+  - Base32 encoding
+  - Secure key derivation
+end note
+
+note right of Storage
+  **Data Protection:**
+  - File permissions 0600
+  - JSON serialization
+  - Atomic write operations
+  - User data isolation
+  - Backup code hashing (SHA256)
+end note
+
+note right of LockoutMgr
+  **Abuse Prevention:**
+  - Failed attempt tracking
+  - Progressive lockout periods
+  - User-specific rate limits
+  - Automatic unlock after timeout
+  - Admin override capabilities
+end note
+
+note right of SecLog
+  **Audit Trail:**
+  - All MFA events logged
+  - Success/failure tracking
+  - User identification
+  - Timestamp recording
+  - Security incident detection
+end note
+
+' Security boundaries
+rectangle "Trust Boundary" {
+    EnhancedAuth
+    MFAAuth
+    Storage
+}
+
+rectangle "External Trust" {
+    TOTPApps
+    IAM
+}
+
+@enduml

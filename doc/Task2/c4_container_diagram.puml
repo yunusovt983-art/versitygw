@@ -1,0 +1,80 @@
+@startuml Task2_Container_Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Container Diagram - MFA Enhanced S3 Gateway (Task 2)
+
+Person(s3_user, "S3 API User", "User with MFA-enabled account")
+Person(admin_user, "System Administrator", "Manages MFA configurations")
+
+System_Boundary(s3_gateway_system, "Versity S3 Gateway System") {
+    Container(s3_api_server, "S3 API Server", "Go/Fiber", "Main S3-compatible API server with MFA integration")
+    
+    Container_Boundary(auth_layer, "Authentication Layer") {
+        Container(enhanced_auth, "Enhanced Authentication", "Go Middleware", "V4 signature validation with MFA integration")
+        Container(mfa_middleware, "MFA Middleware", "Go Middleware", "MFA token validation and enforcement")
+    }
+    
+    Container_Boundary(mfa_core, "MFA Core Services") {
+        Container(mfa_service, "MFA Service", "Go Service", "Core MFA business logic and operations")
+        Container(totp_generator, "TOTP Generator", "Go Component", "RFC 6238 TOTP token generation and validation")
+        Container(qr_generator, "QR Code Generator", "Go Component", "QR code generation for MFA setup")
+    }
+    
+    Container_Boundary(storage_layer, "Storage Layer") {
+        ContainerDb(mfa_storage, "MFA Storage", "File System/JSON", "User MFA data and configurations")
+        ContainerDb(config_storage, "Configuration Storage", "YAML/JSON", "MFA policies and system settings")
+    }
+    
+    Container_Boundary(utilities, "Utility Services") {
+        Container(audit_logger, "Audit Logger", "Go Component", "MFA event logging and security audit")
+        Container(metrics_collector, "Metrics Collector", "Go Component", "MFA metrics and monitoring data")
+    }
+}
+
+System_Ext(totp_app, "TOTP Authenticator", "Mobile authenticator application")
+System_Ext(iam_backend, "IAM Backend", "External identity provider")
+System_Ext(monitoring_system, "Monitoring System", "External monitoring and alerting")
+
+' User interactions
+Rel(s3_user, s3_api_server, "S3 API requests with MFA tokens", "HTTPS")
+Rel(admin_user, s3_api_server, "MFA configuration and management", "Admin API")
+
+' Internal container relationships
+Rel(s3_api_server, enhanced_auth, "Request authentication", "Function Call")
+Rel(enhanced_auth, mfa_middleware, "MFA validation", "Function Call")
+Rel(mfa_middleware, mfa_service, "MFA operations", "Interface")
+
+Rel(mfa_service, totp_generator, "TOTP validation", "Function Call")
+Rel(mfa_service, qr_generator, "QR code generation", "Function Call")
+Rel(mfa_service, mfa_storage, "MFA data persistence", "File I/O")
+
+Rel(s3_api_server, config_storage, "Load MFA policies", "File I/O")
+Rel(mfa_middleware, audit_logger, "Log MFA events", "Function Call")
+Rel(mfa_middleware, metrics_collector, "Send MFA metrics", "Function Call")
+
+' External system interactions
+Rel(enhanced_auth, iam_backend, "User authentication", "LDAP/HTTP")
+Rel(qr_generator, totp_app, "QR code setup", "QR Code Display")
+Rel(audit_logger, monitoring_system, "Security logs", "Syslog/HTTP")
+Rel(metrics_collector, monitoring_system, "MFA metrics", "HTTP/Push")
+
+note right of mfa_service
+  **Core MFA Operations:**
+  - Secret generation
+  - TOTP validation
+  - Backup code management
+  - User lockout handling
+  - Policy enforcement
+end note
+
+note right of mfa_storage
+  **Storage Features:**
+  - File-based persistence
+  - Encrypted secrets
+  - Hashed backup codes
+  - User isolation
+  - Atomic operations
+end note
+
+SHOW_LEGEND()
+@enduml

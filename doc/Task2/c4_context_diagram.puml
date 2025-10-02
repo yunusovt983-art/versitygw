@@ -1,0 +1,50 @@
+@startuml Task2_Context_Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title System Context Diagram - MFA Enhanced S3 Gateway (Task 2)
+
+Person(s3_user, "S3 API User", "Developer or application using S3 API with MFA authentication")
+Person(admin_user, "System Administrator", "Manages MFA policies and user configurations")
+
+System(s3_gateway, "Versity S3 Gateway", "S3-compatible API gateway with multi-factor authentication support")
+
+System_Ext(totp_app, "TOTP Authenticator", "Mobile authenticator app (Google Authenticator, Authy, etc.)")
+System_Ext(iam_backend, "IAM Backend", "Identity and Access Management system (LDAP, Vault, Database)")
+System_Ext(s3_client, "S3 Client Applications", "AWS CLI, SDKs, or custom applications")
+System_Ext(monitoring, "Monitoring System", "Logging and metrics collection (Prometheus, ELK Stack)")
+
+' User interactions
+Rel(s3_user, s3_gateway, "Makes S3 API requests with MFA tokens", "HTTPS")
+Rel(s3_user, totp_app, "Generates TOTP tokens", "Mobile App")
+Rel(admin_user, s3_gateway, "Configures MFA policies and settings", "Admin API")
+
+' Client interactions
+Rel(s3_client, s3_gateway, "S3 API calls with MFA authentication", "HTTPS/REST")
+
+' External system interactions
+Rel(s3_gateway, iam_backend, "User authentication and authorization", "LDAP/HTTP/DB")
+Rel(s3_gateway, monitoring, "Audit logs and MFA metrics", "Syslog/HTTP")
+
+' Setup flow
+Rel(s3_gateway, totp_app, "Provides QR codes for MFA setup", "QR Code/Manual Entry")
+
+note right of s3_gateway
+  **Key MFA Features:**
+  - TOTP token validation (RFC 6238)
+  - Backup code support
+  - Policy-based MFA enforcement
+  - User lockout protection
+  - Comprehensive audit logging
+  - QR code generation for setup
+end note
+
+note left of totp_app
+  **Supported Apps:**
+  - Google Authenticator
+  - Microsoft Authenticator
+  - Authy
+  - Any RFC 6238 compatible app
+end note
+
+SHOW_LEGEND()
+@enduml

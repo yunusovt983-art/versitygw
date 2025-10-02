@@ -1,0 +1,72 @@
+@startuml Task3-Component-Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Task 3: Enhanced Role-Based Access Control System - Component Diagram
+
+Container(s3_api, "S3 API Gateway", "Go/Fiber", "Handles S3 API requests")
+
+Container_Boundary(access_control_container, "Access Control Engine") {
+    Component(verify_access, "VerifyAccess Function", "Go", "Main access verification entry point with enhanced role support")
+    Component(enhanced_checker, "EnhancedAccessChecker", "Go", "Comprehensive access checking with role integration")
+    Component(access_options, "AccessOptions", "Go Struct", "Contains access request context and parameters")
+    Component(arn_builder, "ARN Builder", "Go", "Builds AWS ARN-style resource identifiers")
+}
+
+Container_Boundary(role_manager_container, "Role Manager") {
+    Component(role_interface, "RoleManager Interface", "Go Interface", "Defines role management operations")
+    Component(inmemory_manager, "InMemoryRoleManager", "Go", "In-memory role storage and management")
+    Component(file_manager, "FileBasedRoleManager", "Go", "File-based persistent role storage")
+    Component(role_validator, "PermissionValidator", "Go", "Validates role and permission consistency")
+}
+
+Container_Boundary(permission_engine_container, "Permission Engine") {
+    Component(enhanced_role, "EnhancedRole", "Go Struct", "Role with detailed permissions and hierarchy")
+    Component(detailed_permission, "DetailedPermission", "Go Struct", "Granular permission with conditions")
+    Component(permission_set, "PermissionSet", "Go Struct", "Aggregated permissions from multiple roles")
+    Component(role_assignment, "RoleAssignment", "Go Struct", "User-to-role assignment with metadata")
+    Component(pattern_matcher, "ARN Pattern Matcher", "Go", "Matches AWS ARN patterns for resources")
+    Component(permission_aggregator, "Permission Aggregator", "Go", "Aggregates permissions using union semantics")
+}
+
+Container_Boundary(cache_container, "Enhanced Cache") {
+    Component(cache_interface, "Cache Interface", "Go Interface", "Defines caching operations")
+    Component(lru_cache, "LRU Cache", "Go", "Least Recently Used cache implementation")
+    Component(ttl_manager, "TTL Manager", "Go", "Manages time-to-live for cache entries")
+    Component(invalidation_engine, "Invalidation Engine", "Go", "Handles cache invalidation patterns")
+}
+
+ContainerDb(role_storage, "Role Storage", "JSON Files", "Persistent role and assignment storage")
+
+' Access Control Flow
+Rel(s3_api, verify_access, "Verify user access", "Function call")
+Rel(verify_access, enhanced_checker, "Use enhanced checking", "Object method")
+Rel(enhanced_checker, role_interface, "Get user roles", "Interface call")
+Rel(verify_access, arn_builder, "Build resource ARN", "Function call")
+
+' Role Management
+Rel(role_interface, inmemory_manager, "In-memory operations", "Implementation")
+Rel(role_interface, file_manager, "File-based operations", "Implementation")
+Rel(inmemory_manager, role_validator, "Validate roles", "Object method")
+Rel(file_manager, role_storage, "Persist data", "File I/O")
+
+' Permission Processing
+Rel(role_interface, enhanced_role, "Return role objects", "Data structure")
+Rel(enhanced_role, detailed_permission, "Contains permissions", "Composition")
+Rel(enhanced_role, pattern_matcher, "Match resources", "Function call")
+Rel(permission_aggregator, permission_set, "Create aggregated permissions", "Object creation")
+Rel(permission_aggregator, enhanced_role, "Process multiple roles", "Data processing")
+
+' Caching
+Rel(role_interface, cache_interface, "Cache role data", "Interface call")
+Rel(cache_interface, lru_cache, "Store in LRU cache", "Implementation")
+Rel(lru_cache, ttl_manager, "Manage expiration", "Object method")
+Rel(cache_interface, invalidation_engine, "Invalidate patterns", "Object method")
+
+' Data Flow Annotations
+note right of verify_access : "Enhanced with role-based\naccess control integration"
+note right of permission_aggregator : "Implements union semantics\nwith deny-by-default principle"
+note right of pattern_matcher : "Supports AWS S3 ARN patterns\nlike arn:aws:s3:::*/*"
+note right of enhanced_role : "Supports role hierarchy\nand inheritance"
+
+SHOW_LEGEND()
+@enduml

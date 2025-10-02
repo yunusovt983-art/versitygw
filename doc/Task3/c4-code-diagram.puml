@@ -1,0 +1,156 @@
+@startuml Task3-Code-Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Task 3: Enhanced Role-Based Access Control System - Code Level Diagram
+
+note as N1
+  <b>Key Implementation Details:</b>
+  • VerifyAccess function modified for enhanced role integration
+  • Permission aggregation with union semantics
+  • Role hierarchy support with inheritance
+  • AWS ARN pattern matching for S3 resources
+  • Comprehensive test coverage with 9 test scenarios
+end note
+
+package "auth" {
+    class "AccessOptions" {
+        +Acl: ACL
+        +AclPermission: Permission
+        +IsRoot: bool
+        +Acc: Account
+        +Bucket: string
+        +Object: string
+        +Action: Action
+        +RoleManager: RoleManager
+    }
+
+    class "VerifyAccess" <<function>> {
+        +VerifyAccess(ctx, backend, opts): error
+        +verifyEnhancedRoleAccessWithAggregation(): (bool, error)
+        +buildResourceARN(bucket, object): string
+    }
+
+    interface "RoleManager" {
+        +CreateRole(*EnhancedRole): error
+        +GetRole(roleID): (*EnhancedRole, error)
+        +GetUserRoles(userID): ([]*EnhancedRole, error)
+        +GetEffectivePermissions(userID): (*PermissionSet, error)
+        +CheckPermission(userID, resource, action): (bool, error)
+        +AssignRole(userID, roleID, assignedBy): error
+        +RevokeRole(userID, roleID): error
+    }
+
+    class "InMemoryRoleManager" {
+        -roles: map[string]*EnhancedRole
+        -assignments: map[string][]*RoleAssignment
+        -mutex: sync.RWMutex
+        -validator: *PermissionValidator
+        +NewInMemoryRoleManager(): *InMemoryRoleManager
+        +expandRoleHierarchy([]*EnhancedRole): ([]*EnhancedRole, error)
+    }
+
+    class "FileBasedRoleManager" {
+        +InMemoryRoleManager
+        -dataDir: string
+        +NewFileBasedRoleManager(dataDir): (*FileBasedRoleManager, error)
+        +loadFromDisk(): error
+        +saveRoleToDisk(*EnhancedRole): error
+    }
+
+    class "EnhancedRole" {
+        +ID: string
+        +Name: string
+        +Description: string
+        +Permissions: []DetailedPermission
+        +ParentRoles: []string
+        +CreatedAt: time.Time
+        +UpdatedAt: time.Time
+        +Metadata: map[string]string
+        +Validate(): error
+        +HasPermission(resource, action): PermissionEffect
+    }
+
+    class "DetailedPermission" {
+        +Resource: string
+        +Action: string
+        +Effect: PermissionEffect
+        +Conditions: map[string]interface{}
+        +Validate(): error
+        +Matches(resource, action): bool
+        +matchesResource(resource): bool
+        +matchesAction(action): bool
+    }
+
+    class "PermissionSet" {
+        +Permissions: []DetailedPermission
+        +ComputedAt: time.Time
+        +HasPermission(resource, action): bool
+    }
+
+    class "RoleAssignment" {
+        +UserID: string
+        +RoleID: string
+        +AssignedAt: time.Time
+        +AssignedBy: string
+        +ExpiresAt: *time.Time
+        +IsExpired(): bool
+    }
+
+    class "EnhancedAccessChecker" {
+        -roleManager: RoleManager
+        -backend: backend.Backend
+        +NewEnhancedAccessChecker(): *EnhancedAccessChecker
+        +CheckAccess(ctx, opts): error
+        +GetUserPermissions(userID): (*PermissionSet, error)
+        +CheckSpecificPermission(userID, bucket, object, action): (bool, error)
+    }
+
+    class "PermissionValidator" {
+        +ValidatePermissionSet([]DetailedPermission): error
+        +findConflicts([]DetailedPermission): []string
+    }
+
+    enum "PermissionEffect" {
+        PermissionAllow
+        PermissionDeny
+    }
+
+    class "PatternMatcher" <<utility>> {
+        +matchesARNPattern(pattern, resource): bool
+    }
+
+    class "PermissionAggregator" <<utility>> {
+        +ComputeEffectivePermissions([]*EnhancedRole): *PermissionSet
+        +resolvePermissionConflicts([]DetailedPermission): []DetailedPermission
+    }
+}
+
+' Relationships
+VerifyAccess --> AccessOptions : uses
+VerifyAccess --> RoleManager : calls
+AccessOptions --> RoleManager : contains
+
+RoleManager <|-- InMemoryRoleManager : implements
+RoleManager <|-- FileBasedRoleManager : implements
+FileBasedRoleManager --> InMemoryRoleManager : extends
+
+InMemoryRoleManager --> EnhancedRole : manages
+InMemoryRoleManager --> RoleAssignment : manages
+InMemoryRoleManager --> PermissionValidator : uses
+
+EnhancedRole --> DetailedPermission : contains
+DetailedPermission --> PermissionEffect : uses
+DetailedPermission --> PatternMatcher : uses
+
+EnhancedAccessChecker --> RoleManager : uses
+PermissionAggregator --> PermissionSet : creates
+PermissionAggregator --> EnhancedRole : processes
+
+' Key functions
+note right of VerifyAccess : "Modified to support enhanced\nrole-based access control"
+note right of InMemoryRoleManager : "Supports role hierarchy\nand permission inheritance"
+note right of DetailedPermission : "AWS ARN pattern matching\nfor S3 resources"
+note right of PermissionAggregator : "Union semantics with\ndeny-by-default principle"
+
+SHOW_LEGEND()
+@enduml

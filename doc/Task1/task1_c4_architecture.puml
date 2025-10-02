@@ -1,0 +1,268 @@
+@startuml Task1_Enhanced_Cache_Architecture
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Deployment.puml
+
+title Enhanced Cache System Architecture - Task1
+
+' =================================
+' LEVEL 1: SYSTEM CONTEXT DIAGRAM
+' =================================
+
+Person(user, "S3 Client", "Applications using S3 API")
+System(gateway, "Versity S3 Gateway", "S3-compatible gateway with enhanced authentication caching")
+System_Ext(iam_services, "External IAM Services", "LDAP, Vault, S3, IPA services")
+System_Ext(storage, "Object Storage", "Backend storage system")
+
+Rel(user, gateway, "S3 API calls", "HTTPS")
+Rel(gateway, iam_services, "Authentication requests", "Various protocols")
+Rel(gateway, storage, "Object operations", "Backend protocol")
+
+newpage
+
+' =================================
+' LEVEL 2: CONTAINER DIAGRAM
+' =================================
+
+System_Boundary(gateway_boundary, "Versity S3 Gateway") {
+    Container(s3_api, "S3 API Layer", "Go", "Handles S3 protocol requests")
+    Container(auth_system, "Enhanced Auth System", "Go", "Authentication with advanced caching")
+    Container(storage_layer, "Storage Layer", "Go", "Object storage operations")
+}
+
+Container_Ext(iam_ldap, "LDAP Service", "LDAP", "User directory service")
+Container_Ext(iam_vault, "Vault Service", "HashiCorp Vault", "Secret management")
+Container_Ext(iam_s3, "S3 IAM Service", "AWS S3", "S3-based user storage")
+Container_Ext(iam_ipa, "IPA Service", "FreeIPA", "Identity management")
+
+Rel(s3_api, auth_system, "Authenticate user", "Function calls")
+Rel(auth_system, iam_ldap, "User lookup", "LDAP")
+Rel(auth_system, iam_vault, "Credential retrieval", "HTTPS/API")
+Rel(auth_system, iam_s3, "User data", "S3 API")
+Rel(auth_system, iam_ipa, "Identity verification", "IPA API")
+Rel(s3_api, storage_layer, "Object operations", "Function calls")
+
+newpage
+
+' =================================
+' LEVEL 3: COMPONENT DIAGRAM
+' =================================
+
+Container_Boundary(auth_boundary, "Enhanced Auth System") {
+    Component(iam_interface, "IAM Service Interface", "Go Interface", "Standard IAM operations contract")
+    Component(enhanced_iam_cache, "Enhanced IAM Cache", "Go Struct", "Main caching layer with fallback support")
+    Component(enhanced_cache, "Enhanced Cache Core", "Go Struct", "LRU cache with TTL and invalidation")
+    Component(fallback_cache, "Fallback Cache", "Go Struct", "Emergency cache for service outages")
+    Component(cache_stats, "Cache Statistics", "Go Struct", "Performance monitoring and metrics")
+    Component(base_iam_services, "Base IAM Services", "Go Structs", "LDAP, Vault, S3, IPA implementations")
+}
+
+ComponentDb(primary_memory, "Primary Cache Storage", "In-Memory Map", "Active cache entries with LRU tracking")
+ComponentDb(fallback_memory, "Fallback Cache Storage", "In-Memory Map", "Backup cache entries with extended TTL")
+
+Rel(iam_interface, enhanced_iam_cache, "Implements", "Interface")
+Rel(enhanced_iam_cache, enhanced_cache, "Uses", "Primary caching")
+Rel(enhanced_iam_cache, fallback_cache, "Uses", "Fallback caching")
+Rel(enhanced_iam_cache, base_iam_services, "Delegates to", "Service calls")
+Rel(enhanced_cache, primary_memory, "Stores/Retrieves", "Cache operations")
+Rel(fallback_cache, fallback_memory, "Stores/Retrieves", "Backup operations")
+Rel(enhanced_cache, cache_stats, "Updates", "Metrics")
+Rel(enhanced_iam_cache, cache_stats, "Monitors", "Health checks")
+
+newpage
+
+' =================================
+' LEVEL 4: CODE DIAGRAM
+' =================================
+
+class EnhancedCache {
+    +Get(key, entryType) (interface{}, bool)
+    +Set(key, value, ttl, entryType)
+    +Invalidate(pattern) error
+    +InvalidateUser(userID) error
+    +InvalidateType(entryType) error
+    +SetFallbackMode(enabled bool)
+    +GetStats() CacheStats
+    +Shutdown() error
+    -evictLRU()
+    -cleanup()
+    -cleanupLoop(ctx, interval)
+}
+
+class EnhancedIAMCache {
+    +CreateAccount(account) error
+    +GetUserAccount(access) (Account, error)
+    +UpdateUserAccount(access, props) error
+    +DeleteUserAccount(access) error
+    +ListUserAccounts() ([]Account, error)
+    +Shutdown() error
+    +InvalidateUser(userID) error
+    +InvalidatePattern(pattern) error
+    +IsHealthy() bool
+    +GetCacheStats() CacheStats
+    -getUserKey(access) string
+}
+
+class CacheEntry {
+    +value interface{}
+    +expiry time.Time
+    +entryType CacheEntryType
+    +accessTime time.Time
+    +key string
+    +isExpired() bool
+    +touch()
+}
+
+enum CacheEntryType {
+    UserCredentials
+    UserRoles
+    Permissions
+    MFASettings
+    SessionData
+}
+
+class CacheStats {
+    +Hits int64
+    +Misses int64
+    +Evictions int64
+    +Size int
+    +MaxSize int
+    +FallbackActive bool
+    +LastCleanup time.Time
+    +HitRate() float64
+}
+
+interface IAMService {
+    +CreateAccount(Account) error
+    +GetUserAccount(string) (Account, error)
+    +UpdateUserAccount(string, MutableProps) error
+    +DeleteUserAccount(string) error
+    +ListUserAccounts() ([]Account, error)
+    +Shutdown() error
+}
+
+EnhancedIAMCache ..|> IAMService : implements
+EnhancedIAMCache --> EnhancedCache : uses (primary)
+EnhancedIAMCache --> EnhancedCache : uses (fallback)
+EnhancedIAMCache --> IAMService : delegates to
+EnhancedCache --> CacheEntry : manages
+EnhancedCache --> CacheStats : updates
+CacheEntry --> CacheEntryType : typed by
+
+newpage
+
+' =================================
+' DEPLOYMENT DIAGRAM
+' =================================
+
+Deployment_Node(server, "Application Server", "Linux Server") {
+    Deployment_Node(go_runtime, "Go Runtime", "Go 1.21+") {
+        Container(gateway_app, "Versity S3 Gateway", "Go Application", "Main application with enhanced caching")
+    }
+    
+    Deployment_Node(memory, "System Memory", "RAM") {
+        ContainerDb(cache_memory, "Cache Storage", "In-Memory", "Primary and fallback cache data")
+    }
+}
+
+Deployment_Node(iam_infrastructure, "IAM Infrastructure", "External Services") {
+    Deployment_Node(ldap_server, "LDAP Server", "OpenLDAP/AD") {
+        Container(ldap_service, "LDAP Service", "LDAP", "User directory")
+    }
+    
+    Deployment_Node(vault_server, "Vault Server", "HashiCorp Vault") {
+        Container(vault_service, "Vault Service", "Vault", "Secret management")
+    }
+    
+    Deployment_Node(s3_server, "S3 Server", "AWS/MinIO") {
+        Container(s3_iam_service, "S3 IAM Service", "S3 API", "User data storage")
+    }
+}
+
+Rel(gateway_app, cache_memory, "Read/Write", "Memory access")
+Rel(gateway_app, ldap_service, "Authentication", "LDAP/389")
+Rel(gateway_app, vault_service, "Secrets", "HTTPS/8200")
+Rel(gateway_app, s3_iam_service, "User data", "HTTPS/443")
+
+newpage
+
+' =================================
+' SEQUENCE DIAGRAM: CACHE FLOW
+' =================================
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Sequence.puml
+
+title Enhanced Cache Flow - User Authentication
+
+participant "S3 Client" as client
+participant "S3 API" as api
+participant "Enhanced IAM Cache" as cache
+participant "Enhanced Cache (Primary)" as primary
+participant "Enhanced Cache (Fallback)" as fallback
+participant "Base IAM Service" as iam
+
+client -> api: S3 Request with credentials
+api -> cache: GetUserAccount(access_key)
+
+cache -> primary: Get("user:access_key", UserCredentials)
+alt Cache Hit
+    primary -> cache: Return cached account
+    cache -> api: Return account
+else Cache Miss
+    cache -> iam: GetUserAccount(access_key)
+    alt IAM Service Available
+        iam -> cache: Return account
+        cache -> primary: Set("user:access_key", account, TTL)
+        cache -> fallback: Set("user:access_key", account, Extended_TTL)
+        cache -> api: Return account
+    else IAM Service Unavailable
+        cache -> fallback: Get("user:access_key", UserCredentials)
+        alt Fallback Hit
+            fallback -> cache: Return stale account
+            cache -> cache: SetFallbackMode(true)
+            cache -> api: Return stale account (with warning)
+        else Complete Miss
+            cache -> api: Return error
+        end
+    end
+end
+
+api -> client: S3 Response
+
+newpage
+
+' =================================
+' CACHE INVALIDATION FLOW
+' =================================
+
+title Cache Invalidation Strategies
+
+participant "Admin/System" as admin
+participant "Enhanced IAM Cache" as cache
+participant "Primary Cache" as primary
+participant "Fallback Cache" as fallback
+
+== User Update Scenario ==
+admin -> cache: UpdateUserAccount(access, props)
+cache -> cache: Update in IAM service
+cache -> primary: Invalidate("^user:access$")
+cache -> fallback: Invalidate("^user:access$")
+cache -> cache: Refresh cache with new data
+
+== Bulk Invalidation Scenario ==
+admin -> cache: InvalidateUser("alice")
+cache -> primary: Invalidate("^alice:")
+cache -> fallback: Invalidate("^alice:")
+
+== Type-based Invalidation ==
+admin -> cache: InvalidateType(UserCredentials)
+cache -> primary: Remove all UserCredentials entries
+cache -> fallback: Remove all UserCredentials entries
+
+== Pattern-based Invalidation ==
+admin -> cache: InvalidatePattern("^session:")
+cache -> primary: Remove matching entries
+cache -> fallback: Remove matching entries
+
+@enduml

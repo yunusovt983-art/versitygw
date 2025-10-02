@@ -1,0 +1,119 @@
+@startuml Task3-Sequence-Diagram
+title Task 3: Enhanced Role-Based Access Control - Access Verification Flow
+
+actor User
+participant "S3 API" as API
+participant "Auth Middleware" as Middleware
+participant "VerifyAccess" as Verify
+participant "RoleManager" as RM
+participant "PermissionEngine" as PE
+participant "Cache" as Cache
+participant "S3 Backend" as Backend
+
+User -> API: S3 Request (GET /bucket/object)
+activate API
+
+API -> Middleware: Process Request
+activate Middleware
+
+Middleware -> Verify: VerifyAccess(ctx, backend, opts)
+activate Verify
+
+note right of Verify: Check basic conditions first
+Verify -> Verify: Check if public bucket
+Verify -> Verify: Check if root user
+Verify -> Verify: Check if admin role
+
+alt Enhanced Role-Based Access Control
+    Verify -> RM: GetEffectivePermissions(userID)
+    activate RM
+    
+    RM -> Cache: Get cached permissions
+    activate Cache
+    Cache --> RM: Cache miss
+    deactivate Cache
+    
+    RM -> RM: GetUserRoles(userID)
+    RM -> RM: expandRoleHierarchy(roles)
+    
+    note right of RM: Include parent roles\nin hierarchy
+    
+    RM -> PE: ComputeEffectivePermissions(allRoles)
+    activate PE
+    
+    PE -> PE: Collect all permissions
+    PE -> PE: resolvePermissionConflicts()
+    
+    note right of PE: Apply "deny wins" principle\nand union semantics
+    
+    PE --> RM: PermissionSet
+    deactivate PE
+    
+    RM -> Cache: Store permissions (with TTL)
+    activate Cache
+    Cache --> RM: Cached
+    deactivate Cache
+    
+    RM --> Verify: PermissionSet
+    deactivate RM
+    
+    Verify -> Verify: buildResourceARN(bucket, object)
+    Verify -> PE: HasPermission(resource, action)
+    activate PE
+    
+    PE -> PE: matchesARNPattern(pattern, resource)
+    
+    note right of PE: Support AWS S3 ARN patterns:\narn:aws:s3:::*/*\narn:aws:s3:::*
+    
+    PE --> Verify: allowed/denied
+    deactivate PE
+    
+    alt Permission Granted
+        Verify --> Middleware: Access Allowed
+    else Permission Denied
+        Verify --> Middleware: Access Denied Error
+    end
+    
+else Fallback to Traditional Access Control
+    note right of Verify: When RoleManager is not available\nor enhanced roles are disabled
+    
+    Verify -> Backend: GetBucketPolicy(bucket)
+    activate Backend
+    Backend --> Verify: Policy or Error
+    deactivate Backend
+    
+    Verify -> Verify: VerifyBucketPolicy()
+    Verify -> Verify: verifyACL()
+    Verify --> Middleware: Traditional Access Result
+end
+
+deactivate Verify
+
+alt Access Granted
+    Middleware -> Backend: Forward Request
+    activate Backend
+    Backend --> Middleware: S3 Response
+    deactivate Backend
+    
+    Middleware --> API: Response
+else Access Denied
+    Middleware --> API: 403 Forbidden
+end
+
+deactivate Middleware
+
+API --> User: HTTP Response
+deactivate API
+
+note over User, Backend
+  <b>Key Features Implemented:</b>
+  • Enhanced role-based access control integration
+  • Permission aggregation from multiple roles
+  • Role hierarchy with inheritance
+  • AWS ARN pattern matching for S3 resources
+  • Caching for performance optimization
+  • Fallback to traditional access control
+  • "Deny by default" security principle
+end note
+
+@enduml

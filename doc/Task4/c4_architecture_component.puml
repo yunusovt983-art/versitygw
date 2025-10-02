@@ -1,0 +1,45 @@
+@startuml Task4_Security_System_Component
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram - Security Audit Logger Container (Task 4)
+
+Container(activity_detector, "Suspicious Activity Detector", "Go")
+Container(alert_system, "Security Alert System", "Go")
+Container(reporting_system, "Security Reporting System", "Go")
+
+Container_Boundary(audit_logger, "Security Audit Logger Container") {
+    Component(event_manager, "Security Event Manager", "Go Struct", "Manages security event lifecycle and validation")
+    Component(pattern_analyzer, "Pattern Analyzer", "Go Interface", "Analyzes security event patterns for threats")
+    Component(event_store_mgr, "Event Store Manager", "Go Struct", "Manages in-memory and persistent event storage")
+    Component(severity_calculator, "Severity Calculator", "Go Function", "Calculates risk scores and severity levels")
+    
+    Component(auth_event_handler, "Authentication Event Handler", "Go Struct", "Handles authentication-specific events")
+    Component(mfa_event_handler, "MFA Event Handler", "Go Struct", "Handles multi-factor authentication events")
+    Component(session_event_handler, "Session Event Handler", "Go Struct", "Handles session lifecycle events")
+    Component(permission_event_handler, "Permission Event Handler", "Go Struct", "Handles authorization and permission events")
+}
+
+ComponentDb(memory_store, "In-Memory Event Store", "sync.Map", "Fast access to recent security events")
+ComponentDb(persistent_store, "Persistent Event Store", "File/JSON", "Long-term storage of security events")
+
+Rel(event_manager, auth_event_handler, "Route auth events", "Function call")
+Rel(event_manager, mfa_event_handler, "Route MFA events", "Function call")
+Rel(event_manager, session_event_handler, "Route session events", "Function call")
+Rel(event_manager, permission_event_handler, "Route permission events", "Function call")
+
+Rel(auth_event_handler, severity_calculator, "Calculate risk", "Function call")
+Rel(mfa_event_handler, severity_calculator, "Calculate risk", "Function call")
+Rel(session_event_handler, pattern_analyzer, "Analyze patterns", "Interface call")
+Rel(permission_event_handler, pattern_analyzer, "Analyze patterns", "Interface call")
+
+Rel(event_manager, event_store_mgr, "Store events", "Method call")
+Rel(pattern_analyzer, event_store_mgr, "Query events", "Method call")
+
+Rel(event_store_mgr, memory_store, "Cache events", "Read/Write")
+Rel(event_store_mgr, persistent_store, "Persist events", "Read/Write")
+
+Rel(event_manager, activity_detector, "Send events", "Channel/API")
+Rel(pattern_analyzer, alert_system, "Threat patterns", "Event notification")
+Rel(event_store_mgr, reporting_system, "Event data", "Query API")
+
+@enduml

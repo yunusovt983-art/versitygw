@@ -1,0 +1,124 @@
+@startuml Task2_Code_Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Code Diagram - MFA Implementation Classes and Interfaces (Task 2)
+
+Component_Boundary(interfaces, "Core Interfaces") {
+    Component(mfa_service_interface, "MFAService", "Interface", "GenerateSecret(), ValidateTOTP(), EnableMFA(), GetMFAStatus()")
+    Component(mfa_storage_interface, "MFAStorage", "Interface", "StoreMFAData(), GetMFAData(), DeleteMFAData()")
+}
+
+Component_Boundary(data_models, "Data Models") {
+    Component(mfa_secret, "MFASecret", "Struct", "Secret, QRCode, BackupCodes, Issuer, AccountName")
+    Component(mfa_status, "MFAStatus", "Struct", "Enabled, LastUsed, BackupCodesRemaining, FailedAttempts")
+    Component(mfa_config, "MFAConfig", "Struct", "Required, TOTPWindow, BackupCodes, GracePeriod, MaxFailedAttempts")
+    Component(mfa_user_data, "MFAUserData", "Struct", "UserID, Secret, BackupCodes, Enabled, LockedUntil")
+    Component(mfa_policy, "MFAPolicy", "Struct", "RequiredForRoles, RequiredForUsers, ExemptUsers, Active")
+}
+
+Component_Boundary(core_logic, "Core Logic Classes") {
+    Component(mfa_service_impl, "MFAServiceImpl", "Class", "Main business logic: secret generation, validation, policy enforcement")
+    Component(totp_generator, "TOTPGenerator", "Class", "RFC 6238 implementation: GenerateTOTP(), ValidateTOTP(), GenerateSecret()")
+    Component(qr_code_generator, "QRCodeGenerator", "Class", "QR code generation for authenticator app setup")
+}
+
+Component_Boundary(storage_impl, "Storage Implementations") {
+    Component(file_mfa_storage, "FileMFAStorage", "Class", "JSON file storage with atomic writes and 0600 permissions")
+    Component(memory_mfa_storage, "MemoryMFAStorage", "Class", "In-memory storage for testing and development")
+}
+
+Component_Boundary(middleware_classes, "Middleware Classes") {
+    Component(mfa_middleware, "MFAMiddleware", "Class", "HTTP middleware: VerifyMFA(), RequireMFA(), extractMFAToken()")
+    Component(enhanced_auth_middleware, "EnhancedAuthMiddleware", "Class", "V4 signature + MFA validation integration")
+    Component(mfa_token_validator, "MFATokenValidator", "Class", "Token validation utilities and user status checks")
+}
+
+Component_Boundary(security_components, "Security Components") {
+    Component(backup_code_manager, "BackupCodeManager", "Component", "Generate, hash, and validate backup codes")
+    Component(lockout_manager, "LockoutManager", "Component", "User lockout logic and rate limiting")
+    Component(secret_generator, "SecretGenerator", "Component", "Cryptographically secure random secret generation")
+}
+
+Component_Boundary(error_handling, "Error Handling") {
+    Component(mfa_error, "MFAError", "Struct", "Code, Message, UserID - structured error information")
+    Component(mfa_error_codes, "MFAErrorCode", "Constants", "InvalidToken, UserLocked, NotEnabled, etc.")
+}
+
+Component_Boundary(utilities, "Utility Components") {
+    Component(context_keys, "ContextKeys", "Constants", "MFAVerified, Account, IsRoot - Fiber context keys")
+    Component(audit_logger, "AuditLogger", "Component", "MFA event logging for security audit")
+    Component(metrics_collector, "MetricsCollector", "Component", "MFA success/failure metrics collection")
+}
+
+' Interface implementations
+Rel(mfa_service_impl, mfa_service_interface, "implements", "All MFA operations")
+Rel(file_mfa_storage, mfa_storage_interface, "implements", "File-based persistence")
+Rel(memory_mfa_storage, mfa_storage_interface, "implements", "Memory-based storage")
+
+' Core service dependencies
+Rel(mfa_service_impl, mfa_storage_interface, "uses", "Data persistence")
+Rel(mfa_service_impl, totp_generator, "uses", "TOTP operations")
+Rel(mfa_service_impl, qr_code_generator, "uses", "QR code generation")
+Rel(mfa_service_impl, backup_code_manager, "uses", "Backup code management")
+Rel(mfa_service_impl, lockout_manager, "uses", "User lockout handling")
+
+' Security component dependencies
+Rel(totp_generator, secret_generator, "uses", "Secure random generation")
+Rel(backup_code_manager, secret_generator, "uses", "Backup code generation")
+
+' Data model relationships
+Rel(mfa_service_impl, mfa_secret, "creates/manages", "Setup data")
+Rel(mfa_service_impl, mfa_status, "returns", "User status")
+Rel(mfa_service_impl, mfa_user_data, "persists", "Storage format")
+Rel(mfa_service_impl, mfa_policy, "evaluates", "Policy enforcement")
+Rel(mfa_service_impl, mfa_config, "configured by", "System settings")
+
+' Middleware relationships
+Rel(mfa_middleware, mfa_service_interface, "uses", "MFA validation")
+Rel(mfa_middleware, mfa_token_validator, "uses", "Token utilities")
+Rel(enhanced_auth_middleware, mfa_service_interface, "uses", "Integrated auth")
+Rel(mfa_middleware, context_keys, "uses", "Context management")
+
+' Error handling
+Rel(mfa_service_impl, mfa_error, "throws", "Structured errors")
+Rel(mfa_middleware, mfa_error, "handles", "HTTP error responses")
+Rel(mfa_error, mfa_error_codes, "uses", "Error classification")
+
+' Storage relationships
+Rel(file_mfa_storage, mfa_user_data, "serializes/deserializes", "JSON format")
+Rel(memory_mfa_storage, mfa_user_data, "stores", "In-memory cache")
+
+' Utility integrations
+Rel(mfa_middleware, audit_logger, "uses", "Security logging")
+Rel(mfa_middleware, metrics_collector, "uses", "Performance metrics")
+
+note right of mfa_service_impl
+  **Key Methods:**
+  - GenerateSecret(userID) → MFASecret
+  - ValidateTOTP(userID, token) → error
+  - EnableMFA(userID, secret) → error
+  - GetMFAStatus(userID) → MFAStatus
+  - ValidateBackupCode(userID, code) → error
+  - IsMFARequiredForRole(userID, role) → bool
+end note
+
+note right of totp_generator
+  **RFC 6238 Features:**
+  - 30-second time windows
+  - HMAC-SHA1 algorithm
+  - 6-digit tokens
+  - Configurable time skew tolerance
+  - Base32 secret encoding
+end note
+
+note right of file_mfa_storage
+  **Security Features:**
+  - Atomic file operations
+  - 0600 file permissions
+  - JSON serialization
+  - User data isolation
+  - Backup code hashing
+end note
+
+SHOW_LEGEND()
+@enduml

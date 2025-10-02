@@ -1,0 +1,76 @@
+@startuml Task4_Security_Flow_Sequence
+title Security Event Processing Flow - Task 4
+
+actor User
+participant "Auth Middleware" as Auth
+participant "Security Audit Logger" as Logger
+participant "Suspicious Activity Detector" as Detector
+participant "Security Alert System" as Alerts
+participant "Security Reporting System" as Reports
+participant "Enhanced Audit Logger" as Enhanced
+participant "Metrics Integration" as Metrics
+database "Event Store" as Store
+database "S3 Storage" as S3
+
+== Authentication Attempt ==
+User -> Auth: Login request
+Auth -> Logger: LogSecurityEvent(AUTH_ATTEMPT)
+Logger -> Store: Store event
+Logger -> Detector: Send event for analysis
+
+== Pattern Detection ==
+Detector -> Store: Query recent events
+Detector -> Detector: Analyze patterns
+alt Suspicious pattern detected
+    Detector -> Alerts: TriggerAlert(BRUTE_FORCE)
+    Alerts -> Store: Log alert event
+    Alerts -> User: Block user (if threshold exceeded)
+    Alerts -> Metrics: Update security metrics
+end
+
+== Successful Authentication ==
+Auth -> Logger: LogSecurityEvent(AUTH_SUCCESS)
+Logger -> Enhanced: LogEnhancedEvent(with metadata)
+Enhanced -> S3: Write enhanced audit log
+Logger -> Metrics: Update auth success metrics
+
+== Failed Authentication ==
+Auth -> Logger: LogSecurityEvent(AUTH_FAILURE)
+Logger -> Detector: Increment failure count
+Detector -> Detector: Check failure thresholds
+alt Threshold exceeded
+    Detector -> Alerts: TriggerAlert(MULTIPLE_FAILURES)
+    Alerts -> Logger: LogSecurityEvent(USER_LOCKED)
+end
+
+== S3 Access Monitoring ==
+User -> S3: S3 API request
+S3 -> Enhanced: Generate access log
+Enhanced -> Logger: Extract security events
+Logger -> Store: Store S3 security events
+Logger -> Detector: Analyze access patterns
+
+== Security Reporting ==
+Reports -> Store: Query security events
+Reports -> Reports: Generate report
+Reports -> Reports: Export to format (JSON/CSV/HTML)
+alt Automated report
+    Reports -> Alerts: Schedule next report
+end
+
+== Metrics Collection ==
+loop Every metrics interval
+    Metrics -> Store: Collect security metrics
+    Metrics -> Metrics: Aggregate data
+    Metrics -> "External Metrics": Send metrics
+end
+
+note over Logger, Detector
+  All components work together to provide:
+  - Real-time threat detection
+  - Automated response to attacks
+  - Comprehensive audit trails
+  - Security metrics and reporting
+end note
+
+@enduml

@@ -1,0 +1,46 @@
+@startuml Task4_Security_System_Container
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Container Diagram - Security Audit & Monitoring System (Task 4)
+
+Person(admin, "Security Administrator")
+Person(user, "End User")
+Person(auditor, "Compliance Auditor")
+
+System_Boundary(security_system, "Security Audit & Monitoring System") {
+    Container(audit_logger, "Security Audit Logger", "Go", "Logs and tracks all security events with structured data")
+    Container(activity_detector, "Suspicious Activity Detector", "Go", "Detects patterns of suspicious authentication behavior")
+    Container(alert_system, "Security Alert System", "Go", "Generates alerts and automatically blocks suspicious users")
+    Container(reporting_system, "Security Reporting System", "Go", "Generates comprehensive security reports and audit trails")
+    Container(enhanced_logger, "Enhanced Audit Logger", "Go", "Extended S3 access logging with security metadata")
+    Container(security_event_logger, "Security Event Logger", "Go", "Structured logging of authentication and authorization events")
+    Container(metrics_integration, "Security Metrics Integration", "Go", "Collects and reports security metrics")
+}
+
+ContainerDb(event_store, "Security Event Store", "In-Memory/File", "Stores security events and patterns")
+ContainerDb(audit_trail, "Audit Trail Storage", "File System", "Persistent storage for audit logs and reports")
+
+System_Ext(s3_storage, "S3-Compatible Storage")
+System_Ext(iam_service, "IAM Service")
+System_Ext(metrics_system, "Metrics System")
+System_Ext(notification_system, "Notification System")
+
+Rel(user, audit_logger, "Authentication events", "API")
+Rel(admin, alert_system, "Configure thresholds", "Admin API")
+Rel(auditor, reporting_system, "Request reports", "Reporting API")
+
+Rel(audit_logger, activity_detector, "Security events", "Internal API")
+Rel(activity_detector, alert_system, "Suspicious patterns", "Event notification")
+Rel(alert_system, reporting_system, "Alert events", "Internal API")
+Rel(enhanced_logger, security_event_logger, "S3 access events", "Log stream")
+
+Rel(audit_logger, event_store, "Store events", "Write")
+Rel(activity_detector, event_store, "Read patterns", "Read")
+Rel(reporting_system, audit_trail, "Store reports", "Write")
+Rel(reporting_system, event_store, "Query events", "Read")
+
+Rel(metrics_integration, metrics_system, "Security metrics", "Metrics API")
+Rel(alert_system, notification_system, "Security alerts", "Webhook")
+Rel(enhanced_logger, s3_storage, "Monitor access", "Log analysis")
+
+@enduml

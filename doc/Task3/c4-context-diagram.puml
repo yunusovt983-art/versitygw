@@ -1,0 +1,24 @@
+@startuml Task3-Context-Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title Task 3: Enhanced Role-Based Access Control System - Context Diagram
+
+Person(user, "User", "S3 API user requesting access to resources")
+Person(admin, "Administrator", "System administrator managing roles and permissions")
+
+System_Boundary(versitygw, "VersityGW S3 Gateway") {
+    System(auth_system, "Enhanced Authentication System", "Provides role-based access control with hierarchical permissions")
+}
+
+System_Ext(s3_backend, "S3 Backend", "Storage backend (AWS S3, MinIO, etc.)")
+System_Ext(iam_service, "IAM Service", "External identity and access management")
+System_Ext(monitoring, "Monitoring System", "Logs and metrics collection")
+
+Rel(user, auth_system, "Requests access to S3 resources", "HTTPS/S3 API")
+Rel(admin, auth_system, "Manages roles and permissions", "Admin API")
+Rel(auth_system, s3_backend, "Accesses storage after authorization", "S3 API")
+Rel(auth_system, iam_service, "Validates user credentials", "HTTPS")
+Rel(auth_system, monitoring, "Sends audit logs and metrics", "HTTPS")
+
+SHOW_LEGEND()
+@enduml

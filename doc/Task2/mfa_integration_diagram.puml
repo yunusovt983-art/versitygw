@@ -1,0 +1,117 @@
+@startuml Task2_MFA_Integration_Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title MFA Integration with Existing S3 Gateway - Task 2
+
+System_Boundary(existing_system, "Existing S3 Gateway System") {
+    Container(s3_api, "S3 API Server", "Go/Fiber", "Existing S3-compatible API")
+    Container(v4_auth, "V4 Authentication", "Go Middleware", "AWS V4 signature validation")
+    Container(iam_service, "IAM Service", "Go Service", "User and role management")
+    Container(s3_controllers, "S3 Controllers", "Go Handlers", "S3 operation handlers")
+    Container(storage_backend, "Storage Backend", "File System", "Object storage")
+}
+
+System_Boundary(mfa_system, "New MFA System") {
+    Container(mfa_service, "MFA Service", "Go Service", "Core MFA functionality")
+    Container(mfa_middleware, "MFA Middleware", "Go Middleware", "MFA validation layer")
+    Container(enhanced_auth, "Enhanced Authentication", "Go Middleware", "V4 + MFA integration")
+    Container(mfa_storage, "MFA Storage", "File System", "MFA user data")
+    Container(mfa_admin_api, "MFA Admin API", "Go Handlers", "MFA management endpoints")
+}
+
+System_Boundary(integration_layer, "Integration Layer") {
+    Container(context_manager, "Context Manager", "Go Utilities", "Shared context keys and data")
+    Container(policy_engine, "Policy Engine", "Go Service", "MFA requirement evaluation")
+    Container(audit_integration, "Audit Integration", "Go Component", "Unified logging")
+    Container(metrics_integration, "Metrics Integration", "Go Component", "Combined metrics")
+}
+
+' Integration relationships
+Rel(s3_api, enhanced_auth, "replaces", "V4 auth middleware")
+Rel(enhanced_auth, v4_auth, "delegates to", "Standard V4 validation")
+Rel(enhanced_auth, mfa_middleware, "integrates with", "MFA validation")
+
+Rel(mfa_middleware, mfa_service, "uses", "MFA operations")
+Rel(mfa_service, mfa_storage, "persists to", "User MFA data")
+
+Rel(enhanced_auth, context_manager, "uses", "Shared context")
+Rel(mfa_middleware, context_manager, "uses", "Context keys")
+Rel(s3_controllers, context_manager, "reads from", "Auth context")
+
+Rel(policy_engine, iam_service, "queries", "User roles")
+Rel(mfa_middleware, policy_engine, "evaluates", "MFA requirements")
+
+Rel(enhanced_auth, audit_integration, "logs to", "Auth events")
+Rel(mfa_middleware, audit_integration, "logs to", "MFA events")
+Rel(audit_integration, existing_system, "integrates with", "Existing logging")
+
+Rel(enhanced_auth, metrics_integration, "reports to", "Auth metrics")
+Rel(mfa_middleware, metrics_integration, "reports to", "MFA metrics")
+
+' Admin API integration
+Rel(s3_api, mfa_admin_api, "includes", "MFA endpoints")
+Rel(mfa_admin_api, mfa_service, "manages", "MFA configuration")
+
+' Data flow
+Rel(s3_controllers, storage_backend, "accesses", "Object data")
+
+note right of enhanced_auth
+  **Integration Points:**
+  - Wraps existing V4 auth
+  - Adds MFA validation layer
+  - Maintains backward compatibility
+  - Preserves existing context
+  - Extends authentication flow
+end note
+
+note right of context_manager
+  **Shared Context Keys:**
+  - ContextKeyAccount
+  - ContextKeyAuthenticated
+  - ContextKeyMFAVerified
+  - ContextKeyIsRoot
+  - ContextKeyPublicBucket
+end note
+
+note right of policy_engine
+  **MFA Policy Evaluation:**
+  - Role-based requirements
+  - Operation-specific rules
+  - User exemptions
+  - Grace period handling
+  - Dynamic policy updates
+end note
+
+note right of mfa_admin_api
+  **New Admin Endpoints:**
+  - POST /mfa/setup
+  - POST /mfa/enable
+  - DELETE /mfa/disable
+  - GET /mfa/status
+  - POST /mfa/backup-codes
+  - GET /mfa/policies
+end note
+
+' Integration boundaries
+rectangle "Backward Compatibility Zone" {
+    v4_auth
+    iam_service
+    s3_controllers
+    storage_backend
+}
+
+rectangle "Enhanced Security Zone" {
+    enhanced_auth
+    mfa_middleware
+    mfa_service
+    policy_engine
+}
+
+rectangle "Shared Infrastructure" {
+    context_manager
+    audit_integration
+    metrics_integration
+}
+
+SHOW_LEGEND()
+@enduml

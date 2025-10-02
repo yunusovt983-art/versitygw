@@ -1,0 +1,28 @@
+@startuml Task4_Security_System_Context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+title System Context - Enhanced Authentication Security System (Task 4)
+
+Person(admin, "Security Administrator", "Monitors security events and manages security policies")
+Person(user, "End User", "Accesses S3-compatible storage services")
+Person(auditor, "Compliance Auditor", "Reviews security reports and audit trails")
+
+System_Boundary(auth_system, "Enhanced Authentication System") {
+    System(security_audit, "Security Audit & Monitoring System", "Comprehensive security monitoring, alerting, and reporting system")
+}
+
+System_Ext(s3_storage, "S3-Compatible Storage", "Object storage system being protected")
+System_Ext(iam_service, "IAM Service", "Identity and Access Management service")
+System_Ext(metrics_system, "Metrics System", "System metrics collection and monitoring")
+System_Ext(notification_system, "Notification System", "External alerting and notification services")
+
+Rel(user, security_audit, "Authentication attempts", "HTTPS/API")
+Rel(admin, security_audit, "Configures security policies", "Admin API")
+Rel(auditor, security_audit, "Requests security reports", "Reporting API")
+
+Rel(security_audit, s3_storage, "Monitors access patterns", "Audit logs")
+Rel(security_audit, iam_service, "Validates permissions", "API calls")
+Rel(security_audit, metrics_system, "Sends security metrics", "Metrics API")
+Rel(security_audit, notification_system, "Sends security alerts", "Webhook/Email")
+
+@enduml

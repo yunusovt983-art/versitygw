@@ -1,0 +1,39 @@
+{
+  "cluster_endpoints": [
+    "http://ipfs-cluster-node1:9094",
+    "http://ipfs-cluster-node2:9094",
+    "http://ipfs-cluster-node3:9094"
+  ],
+  "username": "",
+  "password": "",
+  "connect_timeout": "30s",
+  "request_timeout": "60s",
+  "max_retries": 3,
+  "retry_delay": "1s",
+  "max_concurrent_pins": 100,
+  "pin_timeout": "300s",
+  "chunk_size": 1048576,
+  "replication_min": 1,
+  "replication_max": 3,
+  "compression_enabled": false,
+  "metadata_db_type": "ydb",
+  "metadata_db_endpoints": [
+    "ydb-node1:2135",
+    "ydb-node2:2135"
+  ],
+  "cache_endpoints": [
+    "redis-node1:6379",
+    "redis-node2:6379"
+  ],
+  "cache_enabled": true,
+  "metrics_enabled": true,
+  "log_level": "info",
+  "replica_manager_enabled": true,
+  "analysis_interval": "15m",
+  "rebalancing_interval": "1h",
+  "geographic_optimization": true,
+  "load_balancing_enabled": true,
+  "hot_data_threshold": 100,
+  "warm_data_threshold": 50,
+  "cold_data_threshold": 10
+}

@@ -1,0 +1,46 @@
+@startuml Task3-Container-Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Task 3: Enhanced Role-Based Access Control System - Container Diagram
+
+Person(user, "User", "S3 API user")
+Person(admin, "Administrator", "System administrator")
+
+System_Boundary(versitygw, "VersityGW S3 Gateway") {
+    Container(s3_api, "S3 API Gateway", "Go/Fiber", "Handles S3 API requests and responses")
+    
+    Container_Boundary(auth_containers, "Authentication & Authorization") {
+        Container(access_control, "Access Control Engine", "Go", "Core access verification logic with enhanced role support")
+        Container(role_manager, "Role Manager", "Go", "Manages enhanced roles, permissions, and hierarchies")
+        Container(permission_engine, "Permission Engine", "Go", "Evaluates permissions and handles aggregation")
+        Container(cache_layer, "Enhanced Cache", "Go/In-Memory", "Caches roles, permissions, and access decisions")
+    }
+    
+    Container(middleware, "Authentication Middleware", "Go/Fiber", "Intercepts requests and enforces access control")
+    Container(audit_logger, "Audit Logger", "Go", "Logs security events and access attempts")
+}
+
+ContainerDb(role_storage, "Role Storage", "File System/Database", "Stores role definitions and assignments")
+System_Ext(s3_backend, "S3 Backend", "Storage backend")
+System_Ext(monitoring, "Monitoring System", "External monitoring")
+
+' User interactions
+Rel(user, s3_api, "S3 API requests", "HTTPS")
+Rel(admin, role_manager, "Manage roles", "Admin API")
+
+' Internal container relationships
+Rel(s3_api, middleware, "Request processing", "Go function calls")
+Rel(middleware, access_control, "Verify access", "Go function calls")
+Rel(access_control, role_manager, "Get user roles", "Go interface")
+Rel(access_control, permission_engine, "Evaluate permissions", "Go function calls")
+Rel(role_manager, cache_layer, "Cache role data", "Go interface")
+Rel(permission_engine, cache_layer, "Cache permission decisions", "Go interface")
+Rel(role_manager, role_storage, "Persist roles", "File I/O")
+Rel(middleware, audit_logger, "Log access events", "Go function calls")
+
+' External relationships
+Rel(s3_api, s3_backend, "Forward authorized requests", "S3 API")
+Rel(audit_logger, monitoring, "Send logs", "HTTPS")
+
+SHOW_LEGEND()
+@enduml

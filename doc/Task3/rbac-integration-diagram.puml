@@ -1,0 +1,88 @@
+@startuml Task3_RBAC_Integration_Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Enhanced RBAC Integration with Existing S3 Gateway - Task 3
+
+System_Boundary(existing_system, "Existing S3 Gateway System") {
+    Container(s3_api, "S3 API Server", "Go/Fiber", "Existing S3 API endpoints")
+    Container(auth_middleware, "Authentication Middleware", "Go", "Existing V4 signature authentication")
+    Container(iam_service, "IAM Service", "Go", "Existing identity and access management")
+    Container(bucket_policy, "Bucket Policy Engine", "Go", "Traditional bucket-level policies")
+    Container(acl_engine, "ACL Engine", "Go", "Traditional object-level ACLs")
+}
+
+System_Boundary(enhanced_rbac, "Enhanced RBAC System (Task 3)") {
+    Container(role_manager, "Enhanced Role Manager", "Go", "Manages roles with detailed permissions")
+    Container(access_control, "Enhanced Access Control", "Go", "Verifies access with role aggregation")
+    Container(permission_engine, "Permission Engine", "Go", "Evaluates detailed permissions")
+    Container(rbac_cache, "RBAC Cache", "Go", "Caches role permissions for performance")
+}
+
+System_Boundary(integration_layer, "Integration Layer") {
+    Container(enhanced_verify, "Enhanced VerifyAccess", "Go", "Modified access verification with RBAC")
+    Container(context_manager, "Context Manager", "Go", "Manages request context with role information")
+    Container(policy_resolver, "Policy Resolver", "Go", "Resolves conflicts between RBAC and traditional policies")
+    Container(audit_logger, "Enhanced Audit Logger", "Go", "Logs RBAC access decisions")
+}
+
+System_Boundary(backward_compatibility, "Backward Compatibility") {
+    Container(fallback_handler, "Fallback Handler", "Go", "Falls back to traditional access control")
+    Container(migration_service, "Migration Service", "Go", "Migrates traditional policies to RBAC")
+    Container(compatibility_layer, "Compatibility Layer", "Go", "Ensures existing APIs continue to work")
+}
+
+System_Boundary(extended_security, "Extended Security Features") {
+    Container(deny_override, "Deny Override Engine", "Go", "Ensures deny permissions take precedence")
+    Container(hierarchy_resolver, "Role Hierarchy Resolver", "Go", "Resolves role inheritance")
+    Container(permission_aggregator, "Permission Aggregator", "Go", "Combines permissions from multiple roles")
+}
+
+' External systems
+System_Ext(s3_clients, "S3 Clients", "Applications using S3 API")
+System_Ext(admin_tools, "Admin Tools", "Role management interfaces")
+
+' Client interactions
+Rel(s3_clients, s3_api, "S3 API requests", "HTTPS")
+Rel(admin_tools, role_manager, "Manage roles", "HTTPS/API")
+
+' Existing system flow
+Rel(s3_api, auth_middleware, "Authenticate request")
+Rel(auth_middleware, iam_service, "Verify credentials")
+
+' Enhanced RBAC integration
+Rel(auth_middleware, enhanced_verify, "Enhanced access verification")
+Rel(enhanced_verify, role_manager, "Get user roles")
+Rel(enhanced_verify, access_control, "Verify enhanced access")
+
+' Access control flow
+Rel(access_control, permission_engine, "Evaluate permissions")
+Rel(access_control, rbac_cache, "Cache/retrieve permissions")
+Rel(permission_engine, hierarchy_resolver, "Resolve role hierarchy")
+Rel(permission_engine, permission_aggregator, "Aggregate permissions")
+Rel(permission_engine, deny_override, "Apply deny override")
+
+' Integration layer
+Rel(enhanced_verify, context_manager, "Manage request context")
+Rel(enhanced_verify, policy_resolver, "Resolve policy conflicts")
+Rel(enhanced_verify, audit_logger, "Log access decisions")
+
+' Fallback mechanisms
+Rel(enhanced_verify, fallback_handler, "Fallback on errors")
+Rel(fallback_handler, bucket_policy, "Traditional bucket policies")
+Rel(fallback_handler, acl_engine, "Traditional ACLs")
+
+' Backward compatibility
+Rel(role_manager, migration_service, "Migrate existing policies")
+Rel(s3_api, compatibility_layer, "Ensure API compatibility")
+
+' Performance optimization
+Rel(role_manager, rbac_cache, "Cache role data")
+Rel(access_control, rbac_cache, "Fast permission lookup")
+
+note right of enhanced_rbac : "New Enhanced RBAC System\n- Detailed permissions\n- Role hierarchy\n- Union semantics\n- Deny by default"
+
+note right of integration_layer : "Seamless Integration\n- Modified VerifyAccess\n- Context management\n- Policy conflict resolution\n- Enhanced auditing"
+
+note right of backward_compatibility : "Backward Compatibility\n- Fallback mechanisms\n- Migration tools\n- API compatibility\n- Graceful degradation"
+
+@enduml

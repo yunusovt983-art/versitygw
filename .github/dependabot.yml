@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      dev-dependencies:
+        patterns:
+          - "*"
+    allow:
+      # Allow both direct and indirect updates for all packages
+      - dependency-type: "all"
+
